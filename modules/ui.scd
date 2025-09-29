@@ -4,11 +4,13 @@
     var accentColor = Color.new255(90, 180, 255);
     var textColor = Color.white;
     var applyBorder = { |view, color, width = 1|
-        view.drawFunc = { |v|
-            Pen.color_(color);
-            Pen.width = width;
-            Pen.addRect(v.bounds.insetBy(width * 0.5, width * 0.5));
-            Pen.stroke;
+        if(view.respondsTo(\drawFunc_)) {
+            view.drawFunc = { |v|
+                Pen.color_(color);
+                Pen.width = width;
+                Pen.addRect(v.bounds.insetBy(width * 0.5, width * 0.5));
+                Pen.stroke;
+            };
         };
         view;
     };
