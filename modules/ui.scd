@@ -1,5 +1,10 @@
 ~createUI = {
     var window, channelViews;
+    var windowColor = Color(0.08, 0.08, 0.1);
+    var panelColor = Color(0.12, 0.12, 0.16);
+    var sectionColor = Color(0.18, 0.18, 0.22);
+    var accentColor = Color(0.35, 0.65, 0.95);
+    var mutedColor = Color(0.8, 0.25, 0.25);
     var eqSpecs = [
         (band: \high, name: "High", freqRange: [5000, 16000], gainRange: [-60, 20], qRange: [0.2, 5]),
         (band: \mid2, name: "Mid 2", freqRange: [1200, 5000], gainRange: [-60, 20], qRange: [0.2, 10]),
@@ -16,40 +21,52 @@
             window.resizable = true;
         };
     };
+    window.view.background_(windowColor);
     ~mixWindow = window;
 
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton, eqArea, eqControls;
 
         channelContainer = CompositeView(window)
-            .minWidth_(220);
+            .minWidth_(220)
+            .background_(panelColor);
 
-        gainSection = CompositeView(channelContainer);
+        gainSection = CompositeView(channelContainer)
+            .background_(sectionColor);
 
         gainSlider = Slider(gainSection)
             .orientation_(\vertical)
-            .minHeight_(160);
+            .minHeight_(160)
+            .background_(panelColor)
+            .knobColor_(accentColor);
 
         muteButton = Button(gainSection)
             .states_([
-                ["Mute", Color.black, Color(0.85, 0.85, 0.85)],
-                ["Muted", Color.white, Color(0.8, 0.2, 0.2)]
+                ["Mute", Color.white, Color(0.2, 0.2, 0.25)],
+                ["Muted", Color.white, mutedColor]
             ])
             .maxHeight_(28);
 
         eqArea = CompositeView(channelContainer)
-            .minHeight_(440);
+            .minHeight_(440)
+            .background_(sectionColor);
 
         eqControls = eqSpecs.collect { |spec|
             var eqContainer, sliderRow, eqSlider, qSlider, qRange;
 
-            eqContainer = CompositeView(eqArea);
-            sliderRow = CompositeView(eqContainer);
+            eqContainer = CompositeView(eqArea)
+                .background_(panelColor);
+            sliderRow = CompositeView(eqContainer)
+                .background_(panelColor);
             eqSlider = Slider2D(sliderRow)
-                .minHeight_(110);
+                .minHeight_(110)
+                .background_(sectionColor)
+                .knobColor_(accentColor);
             qSlider = Slider(sliderRow)
                 .orientation_(\vertical)
-                .minHeight_(110);
+                .minHeight_(110)
+                .background_(sectionColor)
+                .knobColor_(accentColor);
 
             qRange = spec[\qRange] ?? { [0.2, 10] };
 
