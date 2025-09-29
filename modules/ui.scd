@@ -22,7 +22,13 @@
 
     if(~mixWindow.notNil) { ~mixWindow.close };
     window = Window("MixTable - 4 voies", Rect(100, 100, 1080, 600));
-    window.resizable_(true);
+    if(window.respondsTo(\resizable_)) {
+        window.resizable_(true);
+    } {
+        if(window.respondsTo(\resizable)) {
+            window.resizable = true;
+        };
+    };
     window.background_(darkBackground);
     ~mixWindow = window;
 
