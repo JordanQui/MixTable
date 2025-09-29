@@ -5,10 +5,10 @@
     var textColor = Color.white;
 
     var eqSpecs = [
-        (band: \low,  name: "Low",  freqRange: [40, 250],   gainRange: [-12, 12]),
-        (band: \mid1, name: "Mid 1", freqRange: [250, 1200], gainRange: [-12, 12]),
-        (band: \mid2, name: "Mid 2", freqRange: [1200, 5000], gainRange: [-12, 12]),
-        (band: \high, name: "High", freqRange: [5000, 16000], gainRange: [-12, 12])
+        (band: \low,  name: "Low",  freqRange: [40, 250],   gainRange: [-60, 20]),
+        (band: \mid1, name: "Mid 1", freqRange: [250, 1200], gainRange: [-60, 20]),
+        (band: \mid2, name: "Mid 2", freqRange: [1200, 5000], gainRange: [-60, 20]),
+        (band: \high, name: "High", freqRange: [5000, 16000], gainRange: [-60, 20])
     ];
 
     if(~mixWindow.notNil) { ~mixWindow.close };
