@@ -8,16 +8,18 @@ s.options.numOutputBusChannels = 2;
 s.options.numInputBusChannels = 8;
 s.options.maxNodes = 1024;
 
-
-
 // ======================
-// Routine principale
+// Initialisation
 // ======================
-~mixTick = Routine {
+~bootMixTable = {
+    ("modules/synths.scd").loadRelative;
+    ("modules/ui.scd").loadRelative;
 
+    ~setupAudio.value;
+    ~createUI.value;
 };
 
 // ======================
 // Boot serveur
 // ======================
-s.waitForBoot({ ~mixTick.play(AppClock) });
+s.waitForBoot({ ~bootMixTable.value });
