@@ -14,14 +14,15 @@
     };
 
     var eqSpecs = [
-        (band: \low,  name: "Low",  freqRange: [40, 250],   gainRange: [-60, 20]),
-        (band: \mid1, name: "Mid 1", freqRange: [250, 1200], gainRange: [-60, 20]),
+        (band: \high, name: "High", freqRange: [5000, 16000], gainRange: [-60, 20]),
         (band: \mid2, name: "Mid 2", freqRange: [1200, 5000], gainRange: [-60, 20]),
-        (band: \high, name: "High", freqRange: [5000, 16000], gainRange: [-60, 20])
+        (band: \mid1, name: "Mid 1", freqRange: [250, 1200], gainRange: [-60, 20]),
+        (band: \low,  name: "Low",  freqRange: [40, 250],   gainRange: [-60, 20])
     ];
 
     if(~mixWindow.notNil) { ~mixWindow.close };
-    window = Window("MixTable - 4 voies", Rect(100, 100, 1080, 440));
+    window = Window("MixTable - 4 voies", Rect(100, 100, 1080, 600));
+    window.resizable_(true);
     window.background_(darkBackground);
     ~mixWindow = window;
 
@@ -53,9 +54,13 @@
             .align_(\center)
             .stringColor_(textColor)
             .minHeight_(24);
-        var eqArea = CompositeView(channelContainer)
+        var eqScroll = ScrollView(channelContainer)
+            .hasHorizontalScroller_(false)
+            .hasVerticalScroller_(true);
+        eqScroll.background_(Color.gray(0.16));
+        applyBorder.value(eqScroll, Color.gray(0.25), 1);
+        var eqArea = CompositeView(eqScroll)
             .background_(Color.gray(0.16));
-        applyBorder.value(eqArea, Color.gray(0.25), 1);
 
         var eqControls = eqSpecs.collect { |spec|
             var eqContainer = CompositeView(eqArea)
@@ -103,7 +108,7 @@
             [gainSlider, 1],
             [gainValueLabel, 0],
             [eqTitle, 0],
-            [eqArea, 2]
+            [eqScroll, 2]
         ).margins_(12));
 
         {
