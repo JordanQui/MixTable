@@ -17,29 +17,23 @@ SynthDef(\outputLimiter, { |input = 0, out = 0|
     (label: "7 / 8", channels: [6, 7], isMono: 0)
 ];
 
-// SynthDef pour chaque tranche d'entrée
-SynthDef(\mixInputChannel, { |inA = 0, inB = 1, isMono = 0, outBus = 0, gain = 1|
-    var sig;
-    var stereo = SoundIn.ar([inA, inB]);
-    var mono = SoundIn.ar(inA) ! 2;
-    sig = (stereo * (1 - isMono)) + (mono * isMono);
-    Out.ar(outBus, sig * gain);
-}).add;
-
-// SynthDef pour l'égaliseur 4 bandes et le gain maître
-SynthDef(\mixMaster, {
-    |inBus = 0, outBus = 0, masterGain = 1,
+// SynthDef pour chaque tranche d'entrée avec égalisation 4 bandes
+SynthDef(\mixChannel, {
+    |inA = 0, inB = 1, isMono = 0, outBus = 0,
+    gainAmp = 1,
     lowFreq = 120, lowGain = 0,
     mid1Freq = 500, mid1Gain = 0,
     mid2Freq = 2000, mid2Gain = 0,
     highFreq = 8000, highGain = 0|
-    var sig;
-    sig = In.ar(inBus, 2);
+    var stereo, mono, sig;
+    stereo = SoundIn.ar([inA, inB]);
+    mono = SoundIn.ar(inA) ! 2;
+    sig = (stereo * (1 - isMono)) + (mono * isMono);
     sig = BLowShelf.ar(sig, lowFreq, 1, lowGain);
     sig = BPeakEQ.ar(sig, mid1Freq, 1, mid1Gain);
     sig = BPeakEQ.ar(sig, mid2Freq, 1, mid2Gain);
     sig = BHiShelf.ar(sig, highFreq, 1, highGain);
-    sig = sig * masterGain;
+    sig = sig * gainAmp;
     Out.ar(outBus, sig);
 }).add;
 
@@ -60,7 +54,7 @@ SynthDef(\mixMaster, {
 
 ~setupAudio = {
     // Nettoyage si nécessaire
-    [~channelSynths, ~mixSynth, ~limiterSynth].do { |item|
+    [~channelSynths, ~limiterSynth].do { |item|
         if(item.notNil) {
             if(item.isKindOf(Array)) {
                 item.do(_.tryPerform(\free));
@@ -70,78 +64,82 @@ SynthDef(\mixMaster, {
         };
     };
 
-    [~inputGroup, ~processingGroup, ~outputGroup].do(_.tryPerform(\free));
-    [~mixBus, ~postEqBus].do { |bus| bus.tryPerform(\free) };
+    [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
+    ~mixBus.tryPerform(\free);
 
     ~mixBus = Bus.audio(s, 2);
-    ~postEqBus = Bus.audio(s, 2);
 
     ~inputGroup = Group.head(s);
-    ~processingGroup = Group.after(~inputGroup);
-    ~outputGroup = Group.after(~processingGroup);
+    ~outputGroup = Group.after(~inputGroup);
 
-    ~channelSynths = ~mixInputs.collect { |cfg|
-        Synth(\mixInputChannel, [
+    ~channelStates = Array.fill(~mixInputs.size, {
+        var eqState = IdentityDictionary.new;
+        ~eqDefaults.keysValuesDo { |band, defaults|
+            eqState[band] = defaults.copy;
+        };
+        (gainDB: 0, eq: eqState);
+    });
+
+    ~channelSynths = ~mixInputs.collect { |cfg, index|
+        var state = ~channelStates[index];
+        Synth(\mixChannel, [
             \inA, cfg[\channels][0],
             \inB, cfg[\channels][1],
             \isMono, cfg[\isMono],
             \outBus, ~mixBus,
-            \gain, 1
+            \gainAmp, state[\gainDB].dbamp,
+            \lowFreq, state[\eq][\low][\freq],
+            \lowGain, state[\eq][\low][\gain],
+            \mid1Freq, state[\eq][\mid1][\freq],
+            \mid1Gain, state[\eq][\mid1][\gain],
+            \mid2Freq, state[\eq][\mid2][\freq],
+            \mid2Gain, state[\eq][\mid2][\gain],
+            \highFreq, state[\eq][\high][\freq],
+            \highGain, state[\eq][\high][\gain]
         ], target: ~inputGroup);
     };
 
-    ~eqState = IdentityDictionary.new;
-    ~eqDefaults.keysValuesDo { |band, defaults|
-        ~eqState[band] = defaults.copy;
-    };
-
-    ~masterGainDB = 0;
-
-    ~mixSynth = Synth(\mixMaster, [
-        \inBus, ~mixBus,
-        \outBus, ~postEqBus,
-        \masterGain, ~masterGainDB.dbamp,
-        \lowFreq, ~eqState[\low][\freq],
-        \lowGain, ~eqState[\low][\gain],
-        \mid1Freq, ~eqState[\mid1][\freq],
-        \mid1Gain, ~eqState[\mid1][\gain],
-        \mid2Freq, ~eqState[\mid2][\freq],
-        \mid2Gain, ~eqState[\mid2][\gain],
-        \highFreq, ~eqState[\high][\freq],
-        \highGain, ~eqState[\high][\gain]
-    ], target: ~processingGroup);
-
     ~limiterSynth = Synth(\outputLimiter, [
-        \input, ~postEqBus,
+        \input, ~mixBus,
         \out, 0
     ], target: ~outputGroup);
 
-    ~setMasterGain = { |db|
-        ~masterGainDB = db;
-        ~mixSynth.tryPerform(\set, \masterGain, db.dbamp);
-    };
-
-    ~setEqBand = { |band, freq, gain|
-        var params = ~eqParamMap[band];
-        ~eqState[band] = (freq: freq, gain: gain);
-        if(params.notNil) {
-            ~mixSynth.tryPerform(\set, params[\freqKey], freq, params[\gainKey], gain);
+    ~setChannelGain = { |index, db|
+        if((index >= 0) and: { index < ~channelSynths.size }) {
+            var synth = ~channelSynths[index];
+            ~channelStates[index][\gainDB] = db;
+            synth.tryPerform(\set, \gainAmp, db.dbamp);
         };
     };
 
-    ~getEqState = { |band|
-        ~eqState[band] ?? { (freq: 0, gain: 0) };
+    ~setChannelEq = { |index, band, freq, gain|
+        if((index >= 0) and: { index < ~channelSynths.size }) {
+            var params = ~eqParamMap[band];
+            var synth = ~channelSynths[index];
+            if(params.notNil) {
+                synth.tryPerform(\set, params[\freqKey], freq, params[\gainKey], gain);
+            };
+            ~channelStates[index][\eq][band] = (freq: freq, gain: gain);
+        };
     };
 
-    ~getMasterGain = { ~masterGainDB };
+    ~getChannelState = { |index|
+        ~channelStates[index] ?? {
+            var eqState = IdentityDictionary.new;
+            ~eqDefaults.keysValuesDo { |band, defaults|
+                eqState[band] = defaults.copy;
+            };
+            (gainDB: 0, eq: eqState);
+        };
+    };
 
     CmdPeriod.doOnce({
-        [~channelSynths, ~mixSynth, ~limiterSynth].do { |item|
+        [~channelSynths, ~limiterSynth].do { |item|
             if(item.notNil) {
                 if(item.isKindOf(Array)) { item.do(_.tryPerform(\free)) } { item.tryPerform(\free) };
             };
         };
-        [~mixBus, ~postEqBus].do { |bus| bus.tryPerform(\free) };
-        [~inputGroup, ~processingGroup, ~outputGroup].do(_.tryPerform(\free));
+        [~mixBus].do { |bus| bus.tryPerform(\free) };
+        [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     });
 };
