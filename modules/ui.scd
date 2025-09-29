@@ -3,6 +3,15 @@
     var darkBackground = Color.new255(25, 25, 25);
     var accentColor = Color.new255(90, 180, 255);
     var textColor = Color.white;
+    var applyBorder = { |view, color, width = 1|
+        view.drawFunc = { |v|
+            Pen.color_(color);
+            Pen.width = width;
+            Pen.addRect(v.bounds.insetBy(width * 0.5, width * 0.5));
+            Pen.stroke;
+        };
+        view;
+    };
 
     var eqSpecs = [
         (band: \low,  name: "Low",  freqRange: [40, 250],   gainRange: [-60, 20]),
@@ -19,8 +28,8 @@
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer = CompositeView(window)
             .background_(Color.gray(0.12))
-            .border_(Color.gray(0.35), 1)
             .minWidth_(240);
+        applyBorder.value(channelContainer, Color.gray(0.35), 1);
         var title = StaticText(channelContainer)
             .string_("Tranche " ++ cfg[\label])
             .align_(\center)
@@ -45,13 +54,13 @@
             .stringColor_(textColor)
             .minHeight_(24);
         var eqArea = CompositeView(channelContainer)
-            .background_(Color.gray(0.16))
-            .border_(Color.gray(0.25), 1);
+            .background_(Color.gray(0.16));
+        applyBorder.value(eqArea, Color.gray(0.25), 1);
 
         var eqControls = eqSpecs.collect { |spec|
             var eqContainer = CompositeView(eqArea)
-                .background_(Color.gray(0.18))
-                .border_(Color.gray(0.3), 1);
+                .background_(Color.gray(0.18));
+            applyBorder.value(eqContainer, Color.gray(0.3), 1);
             var eqName = StaticText(eqContainer)
                 .string_(spec[\name])
                 .align_(\center)
