@@ -67,6 +67,10 @@ SynthDef(\mixChannel, {
     [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     ~mixBus.tryPerform(\free);
 
+    // S'assurer que toutes les définitions de synthés précédemment envoyées
+    // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
+    s.sync;
+
     ~mixBus = Bus.audio(s, 2);
 
     ~inputGroup = Group.head(s);
