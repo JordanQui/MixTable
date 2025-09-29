@@ -18,20 +18,21 @@ SynthDef(\outputLimiter, { |input = 0, out = 0|
 // SynthDef pour chaque tranche d'entrée avec égalisation 4 bandes
 SynthDef(\mixChannel, {
     |inA = 0, inB = 1, isMono = 0, outBus = 0,
-    gainAmp = 1,
+    gainAmp = 1, mute = 0,
     lowFreq = 120, lowRQ = 1, lowGain = 0,
     mid1Freq = 500, mid1RQ = 1, mid1Gain = 0,
     mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
     highFreq = 8000, highRQ = 1, highGain = 0|
-    var stereo, mono, sig;
+    var stereo, mono, sig, muteLevel;
     stereo = SoundIn.ar([inA, inB]);
     mono = SoundIn.ar(inA) ! 2;
     sig = (stereo * (1 - isMono)) + (mono * isMono);
-    sig = BLowShelf.ar(sig, lowFreq, lowRQ, lowGain.lag(0.1);
-    sig = BPeakEQ.ar(sig, mid1Freq, mid1RQ, mid1Gain.lag(0.1);
-    sig = BPeakEQ.ar(sig, mid2Freq, mid2RQ, mid2Gain.lag(0.1);
-    sig = BHiShelf.ar(sig, highFreq, highRQ, highGain.lag(0.1);
-    sig = sig * gainAmp;
+    sig = BLowShelf.ar(sig, lowFreq, lowRQ, lowGain.lag(0.1));
+    sig = BPeakEQ.ar(sig, mid1Freq, mid1RQ, mid1Gain.lag(0.1));
+    sig = BPeakEQ.ar(sig, mid2Freq, mid2RQ, mid2Gain.lag(0.1));
+    sig = BHiShelf.ar(sig, highFreq, highRQ, highGain.lag(0.1));
+    muteLevel = Lag.kr(1 - mute, 0.05);
+    sig = sig * gainAmp * muteLevel;
     Out.ar(outBus, sig);
 }).add;
 
@@ -79,7 +80,7 @@ SynthDef(\mixChannel, {
         ~eqDefaults.keysValuesDo { |band, defaults|
             eqState[band] = defaults.copy;
         };
-        (gainDB: 0, eq: eqState);
+        (gainDB: 0, eq: eqState, muted: 0);
     });
 
     ~channelSynths = ~mixInputs.collect { |cfg, index|
@@ -101,7 +102,8 @@ SynthDef(\mixChannel, {
             \mid2Gain, state[\eq][\mid2][\gain],
             \highFreq, state[\eq][\high][\freq],
             \highRQ, (state[\eq][\high][\q] ?? { 1 }).reciprocal,
-            \highGain, state[\eq][\high][\gain]
+            \highGain, state[\eq][\high][\gain],
+            \mute, state[\muted]
         ], target: ~inputGroup);
     };
 
@@ -115,6 +117,15 @@ SynthDef(\mixChannel, {
             var synth = ~channelSynths[index];
             ~channelStates[index][\gainDB] = db;
             synth.tryPerform(\set, \gainAmp, db.dbamp);
+        };
+    };
+
+    ~setChannelMute = { |index, muted|
+        if((index >= 0) and: { index < ~channelSynths.size }) {
+            var synth = ~channelSynths[index];
+            var muteValue = muted.clip(0, 1);
+            ~channelStates[index][\muted] = muteValue;
+            synth.tryPerform(\set, \mute, muteValue);
         };
     };
 
@@ -140,7 +151,7 @@ SynthDef(\mixChannel, {
             ~eqDefaults.keysValuesDo { |band, defaults|
                 eqState[band] = defaults.copy;
             };
-            (gainDB: 0, eq: eqState);
+            (gainDB: 0, eq: eqState, muted: 0);
         };
     };
 

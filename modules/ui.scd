@@ -19,14 +19,23 @@
     ~mixWindow = window;
 
     channelViews = ~mixInputs.collect { |cfg, index|
-        var channelContainer, gainSlider, eqArea, eqControls;
+        var channelContainer, gainSection, gainSlider, muteButton, eqArea, eqControls;
 
         channelContainer = CompositeView(window)
             .minWidth_(220);
 
-        gainSlider = Slider(channelContainer)
+        gainSection = CompositeView(channelContainer);
+
+        gainSlider = Slider(gainSection)
             .orientation_(\vertical)
             .minHeight_(160);
+
+        muteButton = Button(gainSection)
+            .states_([
+                ["Mute", Color.black, Color(0.85, 0.85, 0.85)],
+                ["Muted", Color.white, Color(0.8, 0.2, 0.2)]
+            ])
+            .maxHeight_(28);
 
         eqArea = CompositeView(channelContainer)
             .minHeight_(440);
@@ -74,8 +83,13 @@
             [control[\container], 1]
         })).margins_(4));
 
-        channelContainer.layout_(VLayout(8,
+        gainSection.layout_(VLayout(6,
             [gainSlider, 1],
+            [muteButton, 0]
+        ).margins_(4));
+
+        channelContainer.layout_(VLayout(8,
+            [gainSection, 1],
             [eqArea, 3]
         ).margins_(6));
 
@@ -83,11 +97,18 @@
             var state = ~getChannelState.value(index);
             var gainDB = state[\gainDB] ?? { 0 };
             var sliderValue = gainDB.linlin(-60, 20, 0, 1).clip(0, 1);
+            var isMuted = state[\muted] ?? { 0 };
             gainSlider.value_(sliderValue);
+            muteButton.value_(isMuted);
 
             gainSlider.action = { |sl|
                 var db = sl.value.linlin(0, 1, -60, 20);
                 ~setChannelGain.value(index, db);
+            };
+
+            muteButton.action = { |btn|
+                var muted = btn.value.clip(0, 1);
+                ~setChannelMute.value(index, muted);
             };
 
             eqControls.do { |control|
