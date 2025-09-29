@@ -27,42 +27,41 @@
     ~mixWindow = window;
 
     channelViews = ~mixInputs.collect { |cfg, index|
-        var channelContainer = CompositeView(window)
+        var channelContainer, title, gainSlider, gainValueLabel, eqScroll, eqArea, eqControls;
+
+        channelContainer = CompositeView(window)
             .background_(Color.gray(0.12))
-            .minWidth_(240);
+            .minWidth_(220);
         applyBorder.value(channelContainer, Color.gray(0.35), 1);
-        var title = StaticText(channelContainer)
+
+        title = StaticText(channelContainer)
             .string_("Tranche " ++ cfg[\label])
             .align_(\center)
             .stringColor_(textColor)
-            .minHeight_(24);
-        var gainLabel = StaticText(channelContainer)
-            .string_("Gain")
-            .align_(\center)
-            .stringColor_(textColor);
-        var gainSlider = Slider(channelContainer)
+            .minHeight_(22);
+
+        gainSlider = Slider(channelContainer)
             .orientation_(\vertical)
             .background_(Color.gray(0.2))
             .minHeight_(160);
-        var gainValueLabel = StaticText(channelContainer)
+
+        gainValueLabel = StaticText(channelContainer)
             .string_("0.0 dB")
             .align_(\center)
             .stringColor_(accentColor)
             .minHeight_(24);
-        var eqTitle = StaticText(channelContainer)
-            .string_("Égalisation")
-            .align_(\center)
-            .stringColor_(textColor)
-            .minHeight_(24);
-        var eqScroll = ScrollView(channelContainer)
+
+        eqScroll = ScrollView(channelContainer)
             .hasHorizontalScroller_(false)
-            .hasVerticalScroller_(true);
+            .hasVerticalScroller_(true)
+            .minHeight_(220);
         eqScroll.background_(Color.gray(0.16));
         applyBorder.value(eqScroll, Color.gray(0.25), 1);
-        var eqArea = CompositeView(eqScroll)
+
+        eqArea = CompositeView(eqScroll)
             .background_(Color.gray(0.16));
 
-        var eqControls = eqSpecs.collect { |spec|
+        eqControls = eqSpecs.collect { |spec|
             var eqContainer = CompositeView(eqArea)
                 .background_(Color.gray(0.18));
             applyBorder.value(eqContainer, Color.gray(0.3), 1);
@@ -102,14 +101,12 @@
             [control[\container], 1]
         })).margins_(10));
 
-        channelContainer.layout_(VLayout(12,
+        channelContainer.layout_(VLayout(10,
             [title, 0],
-            [gainLabel, 0],
             [gainSlider, 1],
             [gainValueLabel, 0],
-            [eqTitle, 0],
-            [eqScroll, 2]
-        ).margins_(12));
+            [eqScroll, 3]
+        ).margins_(10));
 
         {
             var state = ~getChannelState.value(index);
@@ -138,7 +135,7 @@
     };
 
     window.layout_(HLayout(12, *(channelViews.collect { |control|
-        control[\container]
+        [control[\container], 1]
     })).margins_(12));
 
     window.onClose = { ~mixWindow = nil; window.close };
