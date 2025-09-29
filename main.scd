@@ -23,3 +23,6 @@ s.options.maxNodes = 1024;
 // Boot serveur
 // ======================
 s.waitForBoot({ ~bootMixTable.value });
+
+s.boot;
+s.makeWindow;

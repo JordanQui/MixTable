@@ -29,10 +29,10 @@ SynthDef(\mixChannel, {
     stereo = SoundIn.ar([inA, inB]);
     mono = SoundIn.ar(inA) ! 2;
     sig = (stereo * (1 - isMono)) + (mono * isMono);
-    sig = BLowShelf.ar(sig, lowFreq, 1, lowGain);
-    sig = BPeakEQ.ar(sig, mid1Freq, 1, mid1Gain);
-    sig = BPeakEQ.ar(sig, mid2Freq, 1, mid2Gain);
-    sig = BHiShelf.ar(sig, highFreq, 1, highGain);
+	sig = BLowShelf.ar(sig, lowFreq, 1, lowGain.lag(0.1));
+    sig = BPeakEQ.ar(sig, mid1Freq, 1, mid1Gain.lag(0.1));
+    sig = BPeakEQ.ar(sig, mid2Freq, 1, mid2Gain.lag(0.1));
+    sig = BHiShelf.ar(sig, highFreq, 1, highGain.lag(0.1));
     sig = sig * gainAmp;
     Out.ar(outBus, sig);
 }).add;
