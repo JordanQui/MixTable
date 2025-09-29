@@ -62,19 +62,21 @@
             .background_(Color.gray(0.16));
 
         eqControls = eqSpecs.collect { |spec|
-            var eqContainer = CompositeView(eqArea)
+            var eqContainer, eqName, eqSlider, eqValueLabel;
+
+            eqContainer = CompositeView(eqArea)
                 .background_(Color.gray(0.18));
             applyBorder.value(eqContainer, Color.gray(0.3), 1);
-            var eqName = StaticText(eqContainer)
+            eqName = StaticText(eqContainer)
                 .string_(spec[\name])
                 .align_(\center)
                 .stringColor_(textColor)
                 .minHeight_(20);
-            var eqSlider = Slider2D(eqContainer)
+            eqSlider = Slider2D(eqContainer)
                 .background_(Color.gray(0.1))
                 .knobColor_(accentColor)
                 .minHeight_(110);
-            var eqValueLabel = StaticText(eqContainer)
+            eqValueLabel = StaticText(eqContainer)
                 .string_("")
                 .align_(\center)
                 .stringColor_(accentColor)
