@@ -89,8 +89,6 @@ SynthDef(\mixChannel, {
     ~inputGroup = Group.after(~voiceGroup);
     ~outputGroup = Group.after(~inputGroup);
 
-    ~setupBraidsVoicer.value(~voiceGroup, ~mixInputs, 0, ~defaultMixInputs[0]);
-
     ~channelStates = Array.fill(~mixInputs.size, {
         var eqState = IdentityDictionary.new;
         ~eqDefaults.keysValuesDo { |band, defaults|
@@ -128,6 +126,8 @@ SynthDef(\mixChannel, {
         \input, ~mixBus.index,
         \out, 0
     ], target: ~outputGroup);
+
+    ~setupBraidsVoicer.value(~voiceGroup, ~mixInputs, 0, ~defaultMixInputs[0]);
 
     ~setChannelGain = { |index, db|
         if((index >= 0) and: { index < ~channelSynths.size }) {

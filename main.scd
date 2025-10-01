@@ -26,4 +26,3 @@ s.options.numInputBusChannels = 8;
 // ======================
 s.waitForBoot({ ~bootMixTable.value });
 
-s.makeWindow;
