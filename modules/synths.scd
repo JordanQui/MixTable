@@ -6,11 +6,6 @@ SynthDef(\outputLimiter, { |input = 0, out = 0|
 }).add;
 
 // ================= Bus direct et synthé percussif =================
-SynthDef(\directBusPassthrough, { |inBus = 0, out = 0, level = 1|
-    var sig = In.ar(inBus, 2) * level;
-    Out.ar(out, sig);
-}).add;
-
 SynthDef(\percussiveSine, { |out = 0, freq = 440, amp = 0.2, attack = 0.005, release = 0.35|
     var env = Env.perc(attack.max(0.001), release.max(0.01), 1, curve: -4);
     var envGen = EnvGen.kr(env, doneAction: 2);
@@ -22,7 +17,7 @@ SynthDef(\percussiveSine, { |out = 0, freq = 440, amp = 0.2, attack = 0.005, rel
 
 // Définitions des tranches d'entrée : 1 (mono), 3/4, 5/6, 7/8
 ~mixInputs = [
-    (label: "1",     channels: [0, 0], isMono: 1),
+    (label: "1",     isMono: 1, busGetter: { ~directBus }),
     (label: "3 / 4", channels: [2, 3], isMono: 0),
     (label: "5 / 6", channels: [4, 5], isMono: 0),
     (label: "7 / 8", channels: [6, 7], isMono: 0)
@@ -30,15 +25,22 @@ SynthDef(\percussiveSine, { |out = 0, freq = 440, amp = 0.2, attack = 0.005, rel
 
 // SynthDef pour chaque tranche d'entrée avec égalisation 4 bandes
 SynthDef(\mixChannel, {
-    |inA = 0, inB = 1, isMono = 0, outBus = 0,
+    |inA = 0, inB = 1, isMono = 0, useBus = 0, busIndex = 0, outBus = 0,
     gainAmp = 1, mute = 0,
     lowFreq = 120, lowRQ = 1, lowGain = 0,
     mid1Freq = 500, mid1RQ = 1, mid1Gain = 0,
     mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
     highFreq = 8000, highRQ = 1, highGain = 0|
     var stereo, mono, sig, muteLevel;
-    stereo = SoundIn.ar([inA, inB]);
-    mono = SoundIn.ar(inA) ! 2;
+    var useBusClip = useBus.clip(0, 1);
+    stereo = SelectX.ar(useBusClip, [
+        SoundIn.ar([inA, inB]),
+        In.ar(busIndex, 2)
+    ]);
+    mono = SelectX.ar(useBusClip, [
+        SoundIn.ar(inA) ! 2,
+        In.ar(busIndex, 1) ! 2
+    ]);
     sig = (stereo * (1 - isMono)) + (mono * isMono);
     sig = BLowShelf.ar(sig, lowFreq, lowRQ, lowGain.lag(0.1));
     sig = BPeakEQ.ar(sig, mid1Freq, mid1RQ, mid1Gain.lag(0.1));
@@ -66,7 +68,7 @@ SynthDef(\mixChannel, {
 
 ~setupAudio = {
     // Nettoyage si nécessaire
-    [~channelSynths, ~limiterSynth, ~directBusSynth].do { |item|
+    [~channelSynths, ~limiterSynth].do { |item|
         if(item.notNil) {
             if(item.isKindOf(Array)) {
                 item.do(_.tryPerform(\free));
@@ -99,10 +101,18 @@ SynthDef(\mixChannel, {
 
     ~channelSynths = ~mixInputs.collect { |cfg, index|
         var state = ~channelStates[index];
+        var channels = cfg[\channels] ?? { [0, 0] };
+        var inA = channels[0] ?? { 0 };
+        var inB = channels[1] ?? { inA };
+        var bus = cfg[\busGetter].tryPerform(\value);
+        var useBus = bus.notNil.if({ 1 }, { 0 });
+        var busIndex = bus.notNil.if({ bus.index }, { 0 });
         Synth(\mixChannel, [
-            \inA, cfg[\channels][0],
-            \inB, cfg[\channels][1],
+            \inA, inA,
+            \inB, inB,
             \isMono, cfg[\isMono],
+            \useBus, useBus,
+            \busIndex, busIndex,
             \outBus, ~mixBus,
             \gainAmp, state[\gainDB].dbamp,
             \lowFreq, state[\eq][\low][\freq],
@@ -120,12 +130,6 @@ SynthDef(\mixChannel, {
             \mute, state[\muted]
         ], target: ~inputGroup);
     };
-
-    ~directBusSynth = Synth(\directBusPassthrough, [
-        \inBus, ~directBus,
-        \out, 0,
-        \level, 1
-    ], target: ~outputGroup);
 
     ~limiterSynth = Synth(\outputLimiter, [
         \input, ~mixBus,
@@ -176,7 +180,7 @@ SynthDef(\mixChannel, {
     };
 
     CmdPeriod.doOnce({
-        [~channelSynths, ~limiterSynth, ~directBusSynth].do { |item|
+        [~channelSynths, ~limiterSynth].do { |item|
             if(item.notNil) {
                 if(item.isKindOf(Array)) { item.do(_.tryPerform(\free)) } { item.tryPerform(\free) };
             };
