@@ -47,7 +47,7 @@ if(MIDIClient.initialized.not) {
         };
     }));
 
-    ~midiResponders.add(MIDIFunc.polyTouch({ |pressure, note, channel, src|
+    ~midiResponders.add(MIDIFunc.polytouch({ |pressure, note, channel, src|
         if(matchDevice.(src)) {
             var synth = ~roliSineVoices[note];
             var mod = pressure.linlin(0, 127, 0, 1).clip(0, 1);
