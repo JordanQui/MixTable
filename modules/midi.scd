@@ -11,7 +11,7 @@ if(MIDIClient.initialized.not) {
     ~activeMidiSynths.tryPerform(\valuesDo, { |synth|
         synth.tryPerform(\set, \gate, 0);
     });
-    ~activeMidiSynths = IdentityDictionary.new;
+    ~activeMidiSynths = Dictionary.new;
 
     MIDIIn.disconnectAll;
     MIDIIn.connectAll;
