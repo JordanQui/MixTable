@@ -4,44 +4,48 @@ if(MIDIClient.initialized.not) {
 
 ~midiNoteKey = { |channel, note| "%:%".format(channel, note) };
 
-~midiGetAftertouchState = { |channel|
-    var state;
-
-    if(~midiAftertouchLevels.isNil) {
-        ~midiAftertouchLevels = IdentityDictionary.new;
-    };
-
-    state = ~midiAftertouchLevels[channel];
-
-    if(state.isNil) {
-        state = IdentityDictionary.new;
-        state[\channel] = 1;
-        ~midiAftertouchLevels[channel] = state;
-    };
-
-    ^state;
+~midiEnsureAftertouchStores = {
+    if(~midiChannelAftertouch.isNil) { ~midiChannelAftertouch = Dictionary.new };
+    if(~midiNoteAftertouch.isNil) { ~midiNoteAftertouch = Dictionary.new };
 };
 
-~midiGetAftertouchLevel = { |channel, note|
-    var state = ~midiGetAftertouchState.(channel);
-    ^state[note] ?? { state[\channel] ?? { 1 } };
+~midiGetChannelAftertouch = { |channel|
+    ~midiEnsureAftertouchStores.value;
+    ^(~midiChannelAftertouch[channel] ?? { 1 }).clip(0, 1);
 };
 
 ~midiSetChannelAftertouch = { |channel, level|
-    ~midiGetAftertouchState.(channel)[\channel] = level;
+    ~midiEnsureAftertouchStores.value;
+    ~midiChannelAftertouch[channel] = level.clip(0, 1);
 };
 
 ~midiSetNoteAftertouch = { |channel, note, level|
-    ~midiGetAftertouchState.(channel)[note] = level;
+    var key = ~midiNoteKey.(channel, note);
+    ~midiEnsureAftertouchStores.value;
+    ~midiNoteAftertouch[key] = level.clip(0, 1);
 };
 
 ~midiClearNoteAftertouch = { |channel, note|
-    var state;
+    var key = ~midiNoteKey.(channel, note);
+    if(~midiNoteAftertouch.notNil) {
+        ~midiNoteAftertouch.removeAt(key);
+    };
+};
 
-    if(~midiAftertouchLevels.isNil) { ^nil };
+~midiApplyAftertouchToSynth = { |key, synth|
+    var parts = key.split($:);
+    var channel = parts.at(0).tryPerform(\asInteger) ?? { 0 };
+    var level;
 
-    state = ~midiAftertouchLevels[channel];
-    state.tryPerform(\removeAt, note);
+    if(~midiNoteAftertouch.notNil) {
+        level = ~midiNoteAftertouch[key];
+    };
+
+    if(level.isNil) {
+        level = ~midiGetChannelAftertouch.(channel);
+    };
+
+    synth.tryPerform(\set, \aftertouchAmp, level);
 };
 
 ~releaseMidiNote = { |channel, note|
@@ -76,7 +80,8 @@ if(MIDIClient.initialized.not) {
     };
 
     ~midiActiveSynths = Dictionary.new;
-    ~midiAftertouchLevels = IdentityDictionary.new;
+    ~midiChannelAftertouch = Dictionary.new;
+    ~midiNoteAftertouch = Dictionary.new;
 
     MIDIIn.disconnectAll;
     MIDIIn.connectAll;
@@ -110,7 +115,7 @@ if(MIDIClient.initialized.not) {
                     \freq, freq,
                     \amp, amp,
                     \out, outBus,
-                    \aftertouchAmp, ~midiGetAftertouchLevel.(channel, note)
+                    \aftertouchAmp, ~midiGetChannelAftertouch.(channel)
                 ]);
 
                 ~midiActiveSynths[key] = synth;
@@ -133,10 +138,7 @@ if(MIDIClient.initialized.not) {
 
             ~midiActiveSynths.keysValuesDo { |key, synth|
                 if(key.beginsWith(prefix)) {
-                    var parts = key.split($:);
-                    var note = parts.at(1).tryPerform(\asInteger);
-                    var noteLevel = ~midiGetAftertouchLevel.(channel, note);
-                    synth.tryPerform(\set, \aftertouchAmp, noteLevel);
+                    ~midiApplyAftertouchToSynth.(key, synth);
                 };
             };
         };
@@ -162,6 +164,7 @@ if(MIDIClient.initialized.not) {
             synth.tryPerform(\free);
         });
         ~midiActiveSynths = nil;
-        ~midiAftertouchLevels = nil;
+        ~midiChannelAftertouch = nil;
+        ~midiNoteAftertouch = nil;
     });
 };
