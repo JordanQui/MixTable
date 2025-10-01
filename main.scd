@@ -11,6 +11,7 @@ s.options.numInputBusChannels = 8;
 // Initialisation
 // ======================
 ~bootMixTable = {
+    ("config/transbus_sc1.scd").loadRelative;
     ("modules/voicer.scd").loadRelative;
     ("modules/mixer.scd").loadRelative;
     ("modules/ui.scd").loadRelative;

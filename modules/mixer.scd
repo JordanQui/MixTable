@@ -7,10 +7,10 @@ SynthDef(\outputLimiter, { |input = 0, out = 0|
 
 // ================= Mixage et gestion des bus =================
 
-// Définitions des tranches d'entrée : 1 (mono), 3/4, 5/6, 7/8
+// Définitions des tranches d'entrée : Synth 1, 3/4, 5/6, 7/8
 
 ~defaultMixInputs = [
-    (label: "1",     channels: [0, 0], isMono: 1, useSoundIn: 1),
+    (label: "Synth 1", channels: [0, 1], isMono: 0, useSoundIn: 0),
     (label: "3 / 4", channels: [2, 3], isMono: 0, useSoundIn: 1),
     (label: "5 / 6", channels: [4, 5], isMono: 0, useSoundIn: 1),
     (label: "7 / 8", channels: [6, 7], isMono: 0, useSoundIn: 1)
