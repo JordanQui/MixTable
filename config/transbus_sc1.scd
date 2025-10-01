@@ -31,7 +31,7 @@
 };
 
 ~setupBraidsVoicer = { |voiceGroup, mixInputs, channelIndex = 0, defaultConfig|
-    var midiSource, midiUID, outputBus, proxy, roli, voicer, updatedConfig;
+    var midiSource, midiUID, outputBus, proxy, roli, voicer, updatedConfig, channelSynth;
 
     ~teardownBraidsVoicer.value;
 
@@ -69,6 +69,16 @@
     ));
 
     mixInputs[channelIndex] = updatedConfig;
+
+    if(~channelSynths.isArray and: { channelIndex >= 0 } and: { channelIndex < ~channelSynths.size }) {
+        channelSynth = ~channelSynths[channelIndex];
+        channelSynth.tryPerform(\set,
+            \inA, updatedConfig[\channels][0],
+            \inB, updatedConfig[\channels][1],
+            \isMono, updatedConfig[\isMono] ?? { 0 },
+            \useSoundIn, updatedConfig[\useSoundIn] ?? { 1 }
+        );
+    };
 
     ~braidsVoicer = voicer;
 };
