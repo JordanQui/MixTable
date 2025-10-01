@@ -124,7 +124,7 @@ if(MIDIClient.initialized.not) {
         };
     }));
 
-    ~midiResponders.add(MIDIFunc.afterTouch({ |value, channel, src|
+    ~midiResponders.add(MIDIFunc.touch({ |value, channel, src|
         if(matchDevice.(src)) {
             var level = value.linlin(0, 127, 0, 1);
             var prefix = channel.asString ++ ":";
