@@ -41,18 +41,19 @@ if(MIDIClient.initialized.not) {
 
     ~midiResponders.add(MIDIFunc.noteOn({ |velocity, note, channel, src|
         if(matchDevice.(src)) {
-            var freq = note.midicps;
-            var amp = velocity.linlin(1, 127, 0.02, 0.5);
-            var outBus = ~directBus ?? { 0 };
-            var channelKey = channel;
-            var state = ensureChannelState.(channelKey);
-            var existing = ~roliSineVoices[channelKey];
-            var pressure = (state[\pressure] ?? { 1 }).clip(0, 1);
+            var freq, amp, outBus, channelKey, state, existing, pressure, bend, synth;
+
+            freq = note.midicps;
+            amp = velocity.linlin(1, 127, 0.02, 0.5);
+            outBus = ~directBus ?? { 0 };
+            channelKey = channel;
+            state = ensureChannelState.(channelKey);
+            existing = ~roliSineVoices[channelKey];
+            pressure = (state[\pressure] ?? { 1 }).clip(0, 1);
             if(pressure <= 0.001) {
                 pressure = 1;
             };
-            var bend = state[\bend] ?? { 0 };
-            var synth;
+            bend = state[\bend] ?? { 0 };
 
             if(existing.notNil) {
                 if(existing.isKindOf(Synth)) {
