@@ -57,7 +57,7 @@
         uid: midiUID
     );
 
-    ~makeVoice.value(midiUID, voicer, 0, outputBus.index);
+    ~makeRoliVoice.value(midiUID, voicer, 0, outputBus.index);
 
     updatedConfig = (defaultConfig ? ()).copy;
     updatedConfig.putAll((
