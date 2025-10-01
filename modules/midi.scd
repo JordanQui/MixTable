@@ -68,7 +68,7 @@ if(MIDIClient.initialized.not) {
     ~midiResponders = List.new;
 
     if(~midiActiveSynths.notNil) {
-        ~midiActiveSynths.valuesDo { |synth|
+        ~midiActiveSynths.do { |key, synth|
             synth.tryPerform(\set, \gate, 0);
             synth.tryPerform(\release);
             synth.tryPerform(\free);
@@ -156,7 +156,7 @@ if(MIDIClient.initialized.not) {
     CmdPeriod.doOnce({
         ~midiResponders.tryPerform(\do, _.tryPerform(\free));
         ~midiResponders = nil;
-        ~midiActiveSynths.tryPerform(\valuesDo, { |synth|
+        ~midiActiveSynths.tryPerform(\do, { |key, synth|
             synth.tryPerform(\set, \gate, 0);
             synth.tryPerform(\release);
             synth.tryPerform(\free);
