@@ -10,12 +10,21 @@
         var freq = (note + ~rootNote).keyToDegree(~scale, 12).degreeToKey(~scale).midicps;
         var existing = voices[chan];
         var targetGroup = voicer.at(\group);
+        var server;
 
         existing.tryPerform(\release, 0.1);
 
         targetGroup = targetGroup ?? { s.defaultGroup };
 
-        if(targetGroup.isNil) {
+        server = targetGroup.tryPerform(\server);
+
+        if(server.isNil) {
+            targetGroup = Group.head(s);
+            voicer.put(\group, targetGroup);
+            server = targetGroup.tryPerform(\server);
+        };
+
+        if(targetGroup.isNil or: { server.isNil }) {
             ("Aucun groupe de destination valide pour la voix MIDI (canal %).".format(chan)).warn;
             ^nil;
         };
