@@ -5,14 +5,29 @@
 
 SynthDef(\braidsVoice, {
     |out = 0, freq = 440, vel = 1, amp = 1, mod = 0, bend = 0, gate = 1|
-    var pitch, env, timbre, color, trig, sig;
+    var pitch, env, timbre, color, trig, sig, pressure, pressureLag, modLag, dynamicGain;
     pitch = freq * bend.midiratio;
-    timbre = mod.linlin(0, 1, 0.05, 0.95);
-    color = amp.clip(0, 1);
+    pressure = amp.clip(0, 1);
+    pressureLag = Lag.kr(pressure, 0.1);
+    modLag = Lag.kr(mod.clip(0, 1), 0.1);
+    timbre = modLag.linlin(0, 1, 0.05, 0.95);
+    color = pressureLag.linlin(0, 1, 0.05, 0.95);
     trig = (vel > 0).if(1, 0);
-    env = EnvGen.kr(Env.asr(0.01, 1, 0.3), gate, doneAction: 2);
-    sig = MiBraids.ar(pitch, timbre: timbre, color: color, model: 0, trig: trig, resamp: 2);
-    sig = sig * (vel.clip(0, 1) * amp.clip(0, 1)) * env;
+    env = EnvGen.kr(
+        Env.adsr(0.01, 0.2, pressureLag.linlin(0, 1, 0.4, 1), 0.3),
+        gate,
+        doneAction: 2
+    );
+    dynamicGain = vel.clip(0, 1) * pressureLag.linexp(0, 1, 0.5, 1.2);
+    sig = MiBraids.ar(
+        pitch,
+        timbre: timbre,
+        color: color,
+        model: 0,
+        trig: trig,
+        resamp: 2
+    );
+    sig = sig * dynamicGain * env;
     Out.ar(out, sig!2);
 }).add;
 
@@ -39,6 +54,7 @@ SynthDef(\braidsVoice, {
     voicer.roli.prime(\braidsVoice);
 
     voicer.makeNote = { |q, chan, note = 60, vel = 64|
+        ("MIDI NoteOn reçu – Chan: %, Note: %, Vel: %".format(chan, note, vel)).postln;
         voicer.roli.put(chan, [
             \freq, (note + ~rootNote).keyToDegree(~scale, 12).degreeToKey(~scale).midicps,
             \vel, (vel / 127),
@@ -49,21 +65,25 @@ SynthDef(\braidsVoice, {
     };
 
     voicer.endNote = { |q, chan|
+        ("MIDI NoteOff reçu – Chan: %".format(chan)).postln;
         var obj = voicer.roli.proxy.objects[chan];
         if(obj.notNil) { obj.set(\gate, 0) };
     };
 
     voicer.setTouch = { |q, chan = 0, touchval = 64|
+        ("MIDI Aftertouch reçu – Chan: %, Valeur: %".format(chan, touchval)).postln;
         var obj = voicer.roli.proxy.objects[chan];
         if(obj.notNil) { obj.set(\amp, (touchval / 127)) };
     };
 
     voicer.setSlide = { |q, chan = 0, slide = 0|
+        ("MIDI Slide reçu – Chan: %, Valeur: %".format(chan, slide)).postln;
         var obj = voicer.roli.proxy.objects[chan];
         if(obj.notNil) { obj.set(\mod, (slide / 127)) };
     };
 
     voicer.setBend = { |q, chan = 0, bendval = 0|
+        ("MIDI Pitch Bend reçu – Chan: %, Valeur: %".format(chan, bendval)).postln;
         var obj = voicer.roli.proxy.objects[chan];
         if(obj.notNil) {
             obj.set(\bend, bendval.linlin(0, 16383, -36, 36))
@@ -71,22 +91,27 @@ SynthDef(\braidsVoice, {
     };
 
     midiDefs.add(MIDIdef.noteOn(\roliOn ++ out, { |vel, noteNum, chan|
+        ("Réception MIDIdef.noteOn – Chan: %, Note: %, Vel: %".format(chan, noteNum, vel)).postln;
         voicer.makeNote(chan, noteNum, vel);
     }, srcID: uid).enable);
 
     midiDefs.add(MIDIdef.noteOff(\roliOff ++ out, { |vel, noteNum, chan|
+        ("Réception MIDIdef.noteOff – Chan: %, Note: %, Vel: %".format(chan, noteNum, vel)).postln;
         voicer.endNote(chan, noteNum);
     }, srcID: uid).enable);
 
     midiDefs.add(MIDIdef.cc(\roliSlide ++ out, { |val, ccnum, chan|
+        ("Réception MIDIdef.cc – Chan: %, CC#: %, Valeur: %".format(chan, ccnum, val)).postln;
         voicer.setSlide(chan, val);
     }, 1, srcID: uid).enable);
 
     midiDefs.add(MIDIdef.touch(\roliTouch ++ out, { |val, chan, src|
+        ("Réception MIDIdef.touch – Chan: %, Valeur: %".format(chan, val)).postln;
         voicer.setTouch(chan, val);
     }, srcID: uid).enable);
 
     midiDefs.add(MIDIdef.bend(\roliBend ++ out, { |bend, chan|
+        ("Réception MIDIdef.bend – Chan: %, Valeur: %".format(chan, bend)).postln;
         voicer.setBend(chan, bend);
     }, srcID: uid).enable);
 
