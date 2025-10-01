@@ -5,6 +5,19 @@ SynthDef(\outputLimiter, { |input = 0, out = 0|
     Out.ar(out, limited.tanh);
 }).add;
 
+// ================= Bus direct et synthé percussif =================
+SynthDef(\directBusPassthrough, { |inBus = 0, out = 0, level = 1|
+    var sig = In.ar(inBus, 2) * level;
+    Out.ar(out, sig);
+}).add;
+
+SynthDef(\percussiveSine, { |out = 0, freq = 440, amp = 0.2, attack = 0.005, release = 0.35|
+    var env = Env.perc(attack.max(0.001), release.max(0.01), 1, curve: -4);
+    var envGen = EnvGen.kr(env, doneAction: 2);
+    var sig = SinOsc.ar(freq) * envGen * amp;
+    Out.ar(out, sig ! 2);
+}).add;
+
 // ================= Mixage et gestion des bus =================
 
 // Définitions des tranches d'entrée : 1 (mono), 3/4, 5/6, 7/8
@@ -53,7 +66,7 @@ SynthDef(\mixChannel, {
 
 ~setupAudio = {
     // Nettoyage si nécessaire
-    [~channelSynths, ~limiterSynth].do { |item|
+    [~channelSynths, ~limiterSynth, ~directBusSynth].do { |item|
         if(item.notNil) {
             if(item.isKindOf(Array)) {
                 item.do(_.tryPerform(\free));
@@ -64,13 +77,14 @@ SynthDef(\mixChannel, {
     };
 
     [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
-    ~mixBus.tryPerform(\free);
+    [~mixBus, ~directBus].do { |bus| bus.tryPerform(\free) };
 
     // S'assurer que toutes les définitions de synthés précédemment envoyées
     // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
     s.sync;
 
     ~mixBus = Bus.audio(s, 2);
+    ~directBus = Bus.audio(s, 2);
 
     ~inputGroup = Group.head(s);
     ~outputGroup = Group.after(~inputGroup);
@@ -106,6 +120,12 @@ SynthDef(\mixChannel, {
             \mute, state[\muted]
         ], target: ~inputGroup);
     };
+
+    ~directBusSynth = Synth(\directBusPassthrough, [
+        \inBus, ~directBus,
+        \out, 0,
+        \level, 1
+    ], target: ~outputGroup);
 
     ~limiterSynth = Synth(\outputLimiter, [
         \input, ~mixBus,
@@ -156,12 +176,13 @@ SynthDef(\mixChannel, {
     };
 
     CmdPeriod.doOnce({
-        [~channelSynths, ~limiterSynth].do { |item|
+        [~channelSynths, ~limiterSynth, ~directBusSynth].do { |item|
             if(item.notNil) {
                 if(item.isKindOf(Array)) { item.do(_.tryPerform(\free)) } { item.tryPerform(\free) };
             };
         };
-        [~mixBus].do { |bus| bus.tryPerform(\free) };
+        [~mixBus, ~directBus].do { |bus| bus.tryPerform(\free) };
         [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     });
+    ~setupMidi.tryPerform(\value);
 };
