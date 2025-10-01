@@ -5,20 +5,6 @@ SynthDef(\outputLimiter, { |input = 0, out = 0|
     Out.ar(out, limited.tanh);
 }).add;
 
-// ================= Bus direct et synthé percussif =================
-SynthDef(\percussiveSine, { |out = 0, freq = 440, amp = 0.2, attack = 0.01, decay = 0.2, sustain = 0.7, release = 0.4, gate = 1|
-    var env = Env.adsr(
-        attack.max(0.001),
-        decay.max(0.001),
-        sustain.clip(0, 1),
-        release.max(0.01),
-        curve: -4
-    );
-    var envGen = EnvGen.kr(env, gate, doneAction: 2);
-    var sig = SinOsc.ar(freq) * envGen * amp;
-    Out.ar(out, sig ! 2);
-}).add;
-
 // ================= Mixage et gestion des bus =================
 
 // Définitions des tranches d'entrée : 1 (mono), 3/4, 5/6, 7/8
