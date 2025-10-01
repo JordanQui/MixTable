@@ -49,44 +49,107 @@ SynthDef(\braidsVoice, {
 ~configureBraidsVoicer = {
     |uid, voicer, bank, out|
     var midiDefs = List.new;
+    var roliProxy = voicer.tryPerform(\roli);
+    var roliProxyProxy;
+    var fallbackVoices = IdentityDictionary.new;
+    var fallbackTarget;
+    var useRoli = false;
 
     voicer.indivParams;
-    voicer.roli.prime(\braidsVoice);
+
+    if(roliProxy.notNil) {
+        roliProxy.prime(\braidsVoice);
+        roliProxyProxy = roliProxy.tryPerform(\proxy);
+        useRoli = roliProxyProxy.notNil;
+        if(useRoli.not) {
+            "Impossible d'accéder aux objets ROLI du NPVoicer; utilisation d'une gestion de voix basique.".warn;
+        };
+    } {
+        "Le NPVoicer ne fournit pas d'interface ROLI; utilisation d'une gestion de voix basique.".warn;
+    };
+
+    fallbackTarget = (voicer.tryPerform(\group)
+        ?? { voicer.tryPerform(\target) }
+        ?? { s.defaultGroup });
 
     voicer.makeNote = { |q, chan, note = 60, vel = 64|
+        var freq, velocity, args, synth;
         ("MIDI NoteOn reçu – Chan: %, Note: %, Vel: %".format(chan, note, vel)).postln;
-        voicer.roli.put(chan, [
-            \freq, (note + ~rootNote).keyToDegree(~scale, 12).degreeToKey(~scale).midicps,
-            \vel, (vel / 127),
-            \amp, 1,
-            \gate, 1,
-            \out, out
-        ]);
+        freq = (note + ~rootNote).keyToDegree(~scale, 12).degreeToKey(~scale).midicps;
+        velocity = (vel / 127);
+        if(useRoli) {
+            roliProxy.put(chan, [
+                \freq, freq,
+                \vel, velocity,
+                \amp, 1,
+                \gate, 1,
+                \out, out
+            ]);
+        } {
+            synth = fallbackVoices[chan];
+            synth.tryPerform(\set, \gate, 0);
+            args = [
+                \out, out,
+                \freq, freq,
+                \vel, velocity,
+                \amp, 1,
+                \gate, 1,
+                \mod, 0,
+                \bend, 0
+            ];
+            synth = Synth.tail(fallbackTarget, \braidsVoice, args);
+            fallbackVoices[chan] = synth;
+        };
     };
 
     voicer.endNote = { |q, chan|
         ("MIDI NoteOff reçu – Chan: %".format(chan)).postln;
-        var obj = voicer.roli.proxy.objects[chan];
-        if(obj.notNil) { obj.set(\gate, 0) };
+        var obj, synth;
+        if(useRoli) {
+            obj = roliProxyProxy.objects[chan];
+            if(obj.notNil) { obj.set(\gate, 0) };
+        } {
+            synth = fallbackVoices.removeAt(chan);
+            synth.tryPerform(\set, \gate, 0);
+        };
     };
 
     voicer.setTouch = { |q, chan = 0, touchval = 64|
         ("MIDI Aftertouch reçu – Chan: %, Valeur: %".format(chan, touchval)).postln;
-        var obj = voicer.roli.proxy.objects[chan];
-        if(obj.notNil) { obj.set(\amp, (touchval / 127)) };
+        var obj, synth;
+        if(useRoli) {
+            obj = roliProxyProxy.objects[chan];
+            if(obj.notNil) { obj.set(\amp, (touchval / 127)) };
+        } {
+            synth = fallbackVoices[chan];
+            synth.tryPerform(\set, \amp, (touchval / 127));
+        };
     };
 
     voicer.setSlide = { |q, chan = 0, slide = 0|
         ("MIDI Slide reçu – Chan: %, Valeur: %".format(chan, slide)).postln;
-        var obj = voicer.roli.proxy.objects[chan];
-        if(obj.notNil) { obj.set(\mod, (slide / 127)) };
+        var obj, synth;
+        if(useRoli) {
+            obj = roliProxyProxy.objects[chan];
+            if(obj.notNil) { obj.set(\mod, (slide / 127)) };
+        } {
+            synth = fallbackVoices[chan];
+            synth.tryPerform(\set, \mod, (slide / 127));
+        };
     };
 
     voicer.setBend = { |q, chan = 0, bendval = 0|
         ("MIDI Pitch Bend reçu – Chan: %, Valeur: %".format(chan, bendval)).postln;
-        var obj = voicer.roli.proxy.objects[chan];
-        if(obj.notNil) {
-            obj.set(\bend, bendval.linlin(0, 16383, -36, 36))
+        var obj, synth, bendAmount;
+        bendAmount = bendval.linlin(0, 16383, -36, 36);
+        if(useRoli) {
+            obj = roliProxyProxy.objects[chan];
+            if(obj.notNil) {
+                obj.set(\bend, bendAmount)
+            };
+        } {
+            synth = fallbackVoices[chan];
+            synth.tryPerform(\set, \bend, bendAmount);
         };
     };
 
