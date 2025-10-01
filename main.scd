@@ -10,13 +10,14 @@ s.options.numInputBusChannels = 8;
 // ======================
 // Initialisation
 // ======================
-<<<<<<< HEAD
+~scale = Scale.chromatic;
+~scale.tuning_(\et12);
+~rootNote = 0;
+
+
 ~bootMixTable = {
     ("config/transbus_sc1.scd").loadRelative;
     ("modules/synth.scd").loadRelative;
-=======
-~bootMixTable = Routine {
->>>>>>> 2d070a6 (update)
     ("modules/voicer.scd").loadRelative;
     ("modules/mixer.scd").loadRelative;
     ("modules/ui.scd").loadRelative;
