@@ -125,7 +125,7 @@ if(MIDIClient.initialized.not) {
         if(matchDevice.(src)) {
             var channelKey = channel;
             var state = ensureChannelState.(channelKey);
-            var bend = value.linlin(0, 16383, -~mpePitchBendRange, ~mpePitchBendRange);
+            var bend = value.linlin(0, 16383, (~mpePitchBendRange * -1), ~mpePitchBendRange);
             var voice = ~roliSineVoices[channelKey];
             state[\bend] = bend;
             if(voice.notNil) {
