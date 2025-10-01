@@ -40,8 +40,12 @@ SynthDef(\braidsVoice, {
 
 ~teardownBraidsVoicer = {
     ~freeBraidsMidiDefs.value;
-    ~braidsVoicer.tryPerform(\free);
+    ~braidsVoicer.tryPerform(\releaseAll);
+    ~braidsVoicer.tryPerform(\stop);
     ~braidsVoicer = nil;
+    ~braidsVoicerProxy.tryPerform(\clear);
+    ~braidsVoicerProxy.tryPerform(\free);
+    ~braidsVoicerProxy = nil;
     ~voiceBus.tryPerform(\free);
     ~voiceBus = nil;
 };
@@ -54,6 +58,7 @@ SynthDef(\braidsVoice, {
     var fallbackVoices = IdentityDictionary.new;
     var fallbackTarget;
     var useRoli = false;
+    var makeNote, endNote, setTouch, setSlide, setBend;
 
     voicer.indivParams;
 
@@ -72,7 +77,7 @@ SynthDef(\braidsVoice, {
         ?? { voicer.tryPerform(\target) }
         ?? { s.defaultGroup });
 
-    voicer.makeNote = { |q, chan, note = 60, vel = 64|
+    makeNote = { |chan, note = 60, vel = 64|
         var freq, velocity, args, synth;
         ("MIDI NoteOn reçu – Chan: %, Note: %, Vel: %".format(chan, note, vel)).postln;
         freq = (note + ~rootNote).keyToDegree(~scale, 12).degreeToKey(~scale).midicps;
@@ -102,7 +107,7 @@ SynthDef(\braidsVoice, {
         };
     };
 
-    voicer.endNote = { |q, chan|
+    endNote = { |chan|
         var obj, synth;
         ("MIDI NoteOff reçu – Chan: %".format(chan)).postln;
         if(useRoli) {
@@ -114,7 +119,7 @@ SynthDef(\braidsVoice, {
         };
     };
 
-    voicer.setTouch = { |q, chan = 0, touchval = 64|
+    setTouch = { |chan = 0, touchval = 64|
         var obj, synth;
         ("MIDI Aftertouch reçu – Chan: %, Valeur: %".format(chan, touchval)).postln;
         if(useRoli) {
@@ -126,7 +131,7 @@ SynthDef(\braidsVoice, {
         };
     };
 
-    voicer.setSlide = { |q, chan = 0, slide = 0|
+    setSlide = { |chan = 0, slide = 0|
         var obj, synth;
         ("MIDI Slide reçu – Chan: %, Valeur: %".format(chan, slide)).postln;
         if(useRoli) {
@@ -138,7 +143,7 @@ SynthDef(\braidsVoice, {
         };
     };
 
-    voicer.setBend = { |q, chan = 0, bendval = 0|
+    setBend = { |chan = 0, bendval = 0|
         var obj, synth, bendAmount;
         ("MIDI Pitch Bend reçu – Chan: %, Valeur: %".format(chan, bendval)).postln;
         bendAmount = bendval.linlin(0, 16383, -36, 36);
@@ -155,27 +160,27 @@ SynthDef(\braidsVoice, {
 
     midiDefs.add(MIDIdef.noteOn(\roliOn ++ out, { |vel, noteNum, chan|
         ("Réception MIDIdef.noteOn – Chan: %, Note: %, Vel: %".format(chan, noteNum, vel)).postln;
-        voicer.makeNote(chan, noteNum, vel);
+        makeNote.value(chan, noteNum, vel);
     }, srcID: uid).enable);
 
     midiDefs.add(MIDIdef.noteOff(\roliOff ++ out, { |vel, noteNum, chan|
         ("Réception MIDIdef.noteOff – Chan: %, Note: %, Vel: %".format(chan, noteNum, vel)).postln;
-        voicer.endNote(chan, noteNum);
+        endNote.value(chan, noteNum);
     }, srcID: uid).enable);
 
     midiDefs.add(MIDIdef.cc(\roliSlide ++ out, { |val, ccnum, chan|
         ("Réception MIDIdef.cc – Chan: %, CC#: %, Valeur: %".format(chan, ccnum, val)).postln;
-        voicer.setSlide(chan, val);
+        setSlide.value(chan, val);
     }, 1, srcID: uid).enable);
 
     midiDefs.add(MIDIdef.touch(\roliTouch ++ out, { |val, chan, src|
         ("Réception MIDIdef.touch – Chan: %, Valeur: %".format(chan, val)).postln;
-        voicer.setTouch(chan, val);
+        setTouch.value(chan, val);
     }, srcID: uid).enable);
 
     midiDefs.add(MIDIdef.bend(\roliBend ++ out, { |bend, chan|
         ("Réception MIDIdef.bend – Chan: %, Valeur: %".format(chan, bend)).postln;
-        voicer.setBend(chan, bend);
+        setBend.value(chan, bend);
     }, srcID: uid).enable);
 
     midiDefs
@@ -191,7 +196,7 @@ SynthDef(\braidsVoice, {
 
     if(~enableBraidsVoicer ?? { true }) {
         if(thisProcess.interpreter.notNil and: { NPVoicer.notNil }) {
-            var iacSource, uid, voiceBus, voicer, updatedConfig;
+            var iacSource, uid, voiceBus, proxy, voicer, updatedConfig;
             MIDIClient.init;
             iacSource = MIDIClient.sources.detect { |src|
                 var name = [src.device, src.name].collect(_.asString).join(" ");
@@ -200,22 +205,27 @@ SynthDef(\braidsVoice, {
             if(iacSource.notNil) {
                 uid = iacSource.uid;
                 voiceBus = Bus.audio(s, 2);
+                proxy = NodeProxy.audio(s, 2);
                 updatedConfig = baseConfig.copy.putAll((
                     label: (baseConfig[\label] ?? { "1" }).asString ++ " – Braids",
                     channels: [voiceBus.index, voiceBus.index + 1],
                     isMono: 0,
                     useSoundIn: 0
                 ));
-                voicer = NPVoicer(15, \braidsVoice, target: voiceGroup, out: voiceBus.index);
+                voicer = NPVoicer(proxy);
                 if(voicer.notNil) {
+                    voicer.prime(\braidsVoice);
+                    voicer.play(voiceBus.index, 2, voiceGroup);
                     ~freeBraidsMidiDefs.value;
                     ~braidsMidiDefs = ~configureBraidsVoicer.value(uid, voicer, nil, voiceBus.index);
                     mixInputs[channelIndex] = updatedConfig;
                     ~braidsVoicer = voicer;
+                    ~braidsVoicerProxy = proxy;
                     ~voiceBus = voiceBus;
                     result = (voiceBus: voiceBus, voicer: voicer);
                 } {
                     "Impossible de créer le NPVoicer pour la voix Braids.".warn;
+                    proxy.tryPerform(\free);
                     voiceBus.free;
                     mixInputs[channelIndex] = baseConfig;
                 };
