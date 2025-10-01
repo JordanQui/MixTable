@@ -107,7 +107,7 @@ SynthDef(\braidsVoice, {
             MIDIClient.init;
             iacSource = MIDIClient.sources.detect { |src|
                 var name = [src.device, src.name].collect(_.asString).join(" ");
-                name.contains("IAC");
+                name.contains("TransBus");
             };
             if(iacSource.notNil) {
                 uid = iacSource.uid;
