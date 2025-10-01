@@ -20,11 +20,12 @@ SynthDef(\percussiveSine, {
 // Définition d'un synthé basé sur MembraneHexagon
 SynthDef(\membraneHit, {
     |out = 0, freq = 110, amp = 0.2, gate = 1, tension = 0.6|
-    var ampEnv = EnvGen.kr(Env.asr(0.005, 1, 1.5, curve: -4), gate, doneAction: 2);
+    var ampEnv = EnvGen.kr(Env.asr(0.005, 1, 1.0, curve: -4), gate, doneAction: 2);
     var exciteEnv = EnvGen.kr(Env.perc(0.001, 0.08, 1, curve: -6), gate);
-    var excitation = PinkNoise.ar(exciteEnv);
-    var membrane = MembraneHexagon.ar(excitation, tension.clip(0.05, 0.99));
-    var resonated = BPF.ar(membrane, freq.clip(40, 4000), 0.2);
+    var excitation = PinkNoise.ar(exciteEnv) * 0.35;
+    var membrane = MembraneHexagon.ar(excitation, tension.clip(0.05, 0.99), loss: 0.9995);
+    var resonated = BPF.ar(LeakDC.ar(membrane), freq.clip(40, 4000), 0.2);
+    resonated = Limiter.ar(resonated, 0.9, 0.02);
     Out.ar(out, (resonated * ampEnv * amp).tanh ! 2);
 }).add;
 
@@ -68,6 +69,9 @@ SynthDef(\karplusString, {
 
 ~defaultMidiSynth = \percussiveSine;
 ~midiSynthRouting = IdentityDictionary.new;
+~midiSynthRouting[\default] = ~defaultMidiSynth;
 ~midiSynthRouting[0] = \percussiveSine;
 ~midiSynthRouting[1] = \membraneHit;
 ~midiSynthRouting[2] = \karplusString;
+
+~currentMidiSynthKey = ~defaultMidiSynth;
