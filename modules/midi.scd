@@ -142,7 +142,7 @@ if(MIDIClient.initialized.not) {
         };
     }));
 
-    ~midiResponders.add(MIDIFunc.polyTouch({ |value, note, channel, src|
+    ~midiResponders.add(MIDIFunc.polytouch({ |value, note, channel, src|
         if(matchDevice.(src)) {
             var level = value.linlin(0, 127, 0, 1);
             var key = ~midiNoteKey.(channel, note);
