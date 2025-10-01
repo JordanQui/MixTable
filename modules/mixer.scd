@@ -7,10 +7,9 @@ SynthDef(\outputLimiter, { |input = 0, out = 0|
 
 // ================= Mixage et gestion des bus =================
 
-// Définitions des tranches d'entrée : Synth 1, 3/4, 5/6, 7/8
+// Définitions des tranches d'entrée : 3/4, 5/6, 7/8
 
 ~defaultMixInputs = [
-    (label: "Synth 1", channels: [0, 1], isMono: 0, useSoundIn: 0),
     (label: "3 / 4", channels: [2, 3], isMono: 0, useSoundIn: 1),
     (label: "5 / 6", channels: [4, 5], isMono: 0, useSoundIn: 1),
     (label: "7 / 8", channels: [6, 7], isMono: 0, useSoundIn: 1)
@@ -72,7 +71,7 @@ SynthDef(\mixChannel, {
         };
     };
 
-    ~teardownBraidsVoicer.value;
+    ~teardownBraidsVoicer.tryPerform(\value);
 
     [~voiceGroup, ~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     ~mixBus.tryPerform(\free);
@@ -127,7 +126,7 @@ SynthDef(\mixChannel, {
         \out, 0
     ], target: ~outputGroup);
 
-    ~setupBraidsVoicer.value(~voiceGroup, ~mixInputs, 0, ~defaultMixInputs[0]);
+    // Aucun voicer externe n'est configuré automatiquement pour la première tranche.
 
     ~setChannelGain = { |index, db|
         if((index >= 0) and: { index < ~channelSynths.size }) {
@@ -178,7 +177,7 @@ SynthDef(\mixChannel, {
                 if(item.isKindOf(Array)) { item.do(_.tryPerform(\free)) } { item.tryPerform(\free) };
             };
         };
-        ~teardownBraidsVoicer.value;
+        ~teardownBraidsVoicer.tryPerform(\value);
         [~mixBus].do { |bus| bus.tryPerform(\free) };
         [~voiceGroup, ~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     });

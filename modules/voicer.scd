@@ -1,36 +1,43 @@
 ~makeVoice =
 	{|uid, voicer, bank, out|
 
-	voicer.indivParams;
+        var roliVoicer;
 
-	voicer.roli.prime(\roli_kaivoY001);
+        roliVoicer = voicer[\roli];
+        if(roliVoicer.isNil) {
+                Error("Aucun voicer ROLI initialisé").throw;
+        };
 
-	voicer.makeNote = { |q, chan, note = 60, vel = 64|
-		voicer.roli.put(chan, [
-			\freq, (note + ~rootNote).keyToDegree(~scale,12).degreeToKey(~scale).midicps,
-			\vel, (vel/127),
-			\out, out
-			]);
-	};
-	voicer.endNote = { |q, chan|
-		var obj = voicer.roli.proxy.objects[chan];
-		if (obj.notNil) { obj.set(\gate, 0) };
-	};
+        roliVoicer.indivParams;
 
-	voicer.setTouch = { |q, chan=0, touchval = 64|
-		var obj = voicer.roli.proxy.objects[chan];
-		if (obj.notNil) { obj.set(\amp, (touchval/127)) };
-	};
-	voicer.setSlide = { |q, chan=0, slide = 0|
-		var obj = voicer.roli.proxy.objects[chan];
-		// "slide: % % %\n".postf(chan, slide);
-		if (obj.notNil) { obj.set(\mod, (slide/127)) };
-	};
-	voicer.setBend = { |q, chan=0, bendval = 0|
-		var obj = voicer.roli.proxy.objects[chan];
-		if (obj.notNil) { obj.set(\bend,
-			bendval.linlin(0, 16383, -36, 36)) };o
-	};
+        roliVoicer.prime(\roli_kaivoY001);
+
+        voicer.makeNote = { |q, chan, note = 60, vel = 64|
+                roliVoicer.put(chan, [
+                        \freq, (note + ~rootNote).keyToDegree(~scale,12).degreeToKey(~scale).midicps,
+                        \vel, (vel/127),
+                        \out, out
+                        ]);
+        };
+        voicer.endNote = { |q, chan|
+                var obj = roliVoicer.proxy.objects[chan];
+                if (obj.notNil) { obj.set(\gate, 0) };
+        };
+
+        voicer.setTouch = { |q, chan=0, touchval = 64|
+                var obj = roliVoicer.proxy.objects[chan];
+                if (obj.notNil) { obj.set(\amp, (touchval/127)) };
+        };
+        voicer.setSlide = { |q, chan=0, slide = 0|
+                var obj = roliVoicer.proxy.objects[chan];
+                // "slide: % % %\n".postf(chan, slide);
+                if (obj.notNil) { obj.set(\mod, (slide/127)) };
+        };
+        voicer.setBend = { |q, chan=0, bendval = 0|
+                var obj = roliVoicer.proxy.objects[chan];
+                if (obj.notNil) { obj.set(\bend,
+                        bendval.linlin(0, 16383, -36, 36)) };
+        };
 
 	MIDIdef.noteOn(\roliOn ++ out, { |vel, noteNum, chan|
 		"noteOn: % % %\n".postf(noteNum, vel, chan);

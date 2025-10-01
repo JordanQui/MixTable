@@ -38,12 +38,11 @@ s.latency = 0.1;
 	};
 	~initMidi.value;
 	s.sync;
-	~voicer = ~voicer ? ();
-	~voicer.synth = NPVoicer( Ndef(\roli));
-	s.sync;
-	~makeVoice.value(~uidRoli1, ~voicer, 0,0);
-	s.sync;
-	~voicer.synth.prime(\synth1);
+        ~voicer = ~voicer ? ();
+        ~voicer.roli = NPVoicer(Ndef(\roli));
+        s.sync;
+        ~makeVoice.value(~uidRoli1, ~voicer, 0,0);
+        s.sync;
 };
 
 // ======================
