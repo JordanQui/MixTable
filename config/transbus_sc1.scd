@@ -5,7 +5,6 @@
 
 ~rootNote = ~rootNote ? 0;
 ~scale = ~scale ? Scale.chromatic;
-~tempo = ~tempo ? 1;
 
 ~braidsVoicer = nil;
 
