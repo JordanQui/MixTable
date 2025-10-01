@@ -13,11 +13,15 @@
         current.midiDefs !? { |defs|
             defs.values.do { |def| def.tryPerform(\free); };
         };
-        current.roli.tryPerform(\releaseAll);
-        current.roli.tryPerform(\stop);
-        current.proxy.tryPerform(\stop);
-        current.proxy.tryPerform(\clear);
-        current.proxy.tryPerform(\free);
+        current.voices !? { |voiceDict|
+            voiceDict.values.do(_.tryPerform(\release, 0.1));
+            voiceDict.clear;
+        };
+        current.proxy !? { |proxy|
+            proxy.tryPerform(\stop);
+            proxy.tryPerform(\clear);
+            proxy.tryPerform(\free);
+        };
         current.bus.tryPerform(\free);
     };
     ~braidsVoicer = nil;
@@ -30,7 +34,7 @@
 };
 
 ~setupBraidsVoicer = { |voiceGroup, mixInputs, channelIndex = 0, defaultConfig|
-    var midiSource, midiUID, outputBus, proxy, roli, voicer, updatedConfig, channelSynth;
+    var midiSource, midiUID, outputBus, voicer, updatedConfig, channelSynth;
 
     ~teardownBraidsVoicer.value;
 
@@ -44,15 +48,10 @@
     midiUID = midiSource.tryPerform(\uid);
 
     outputBus = Bus.audio(s, 2);
-    proxy = NodeProxy.audio(s, 2);
-    proxy.play(outputBus.index, 2, voiceGroup);
-    roli = NPVoicerL(proxy, [\freq, \amp, \mod, \bend, \out]);
 
     voicer = (
-        proxy: proxy,
-        roli: roli,
+        group: voiceGroup,
         bus: outputBus,
-        indivParams: [\freq, \amp, \mod, \bend, \out],
         midiSource: midiSource,
         uid: midiUID
     );
