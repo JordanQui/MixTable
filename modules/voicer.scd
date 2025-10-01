@@ -7,9 +7,14 @@
         voicer.roli.prime(\synth1);
 
         voicer.makeNote = { |q, chan, note = 60, vel = 64|
+                var velocity = vel.max(1) / 127; // avoid a zero velocity on note-on
                 voicer.roli.put(chan, [
                         \freq, (note + ~rootNote).keyToDegree(~scale,12).degreeToKey(~scale).midicps,
-                        \amp, (vel/127),
+                        \amp, velocity,
+                        \gate, 1,
+                        \mod, 0,
+                        \bend, 0,
+                        \pan, 0,
                         \out, out
                         ]);
         };
