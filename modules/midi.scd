@@ -3,14 +3,26 @@ if(MIDIClient.initialized.not) {
 };
 
 ~setupMidi = {
-    var matchDevice;
+    var matchDevice, ensureChannelState;
 
     ~midiResponders.tryPerform(\do, _.tryPerform(\free));
     ~midiResponders = List.new;
-    ~roliSineVoices.tryPerform(\do, { |synth|
-        synth.tryPerform(\free);
+    ~roliSineVoices.tryPerform(\do, { |voice|
+        if(voice.isKindOf(Synth)) {
+            voice.tryPerform(\free);
+        } {
+            voice[\synth].tryPerform(\free);
+        };
     });
     ~roliSineVoices = IdentityDictionary.new;
+    ~mpeChannelState = IdentityDictionary.new;
+    ~mpePitchBendRange = ~mpePitchBendRange ?? { 48 };
+
+    ensureChannelState = { |channel|
+        ~mpeChannelState[channel] ?? {
+            ~mpeChannelState[channel] = (pressure: 1, bend: 0);
+        };
+    };
 
     MIDIIn.disconnectAll;
     MIDIIn.connectAll;
@@ -32,17 +44,51 @@ if(MIDIClient.initialized.not) {
             var freq = note.midicps;
             var amp = velocity.linlin(1, 127, 0.02, 0.5);
             var outBus = ~directBus ?? { 0 };
+            var channelKey = channel;
+            var state = ensureChannelState.(channelKey);
+            var existing = ~roliSineVoices[channelKey];
+            var pressure = (state[\pressure] ?? { 1 }).clip(0, 1);
+            if(pressure <= 0.001) {
+                pressure = 1;
+            };
+            var bend = state[\bend] ?? { 0 };
             var synth;
+
+            if(existing.notNil) {
+                if(existing.isKindOf(Synth)) {
+                    existing.tryPerform(\set, \modAmp, 0, \gate, 0);
+                } {
+                    existing[\synth].tryPerform(\set, \modAmp, 0, \gate, 0);
+                };
+            };
+
+            state[\pressure] = pressure;
+
             synth = Synth(\percussiveSine, [
                 \freq, freq,
                 \amp, amp,
-				\gate, 1,
-                \out, outBus
+                \gate, 1,
+                \out, outBus,
+                \modAmp, pressure,
+                \bend, bend
             ]);
-            ~roliSineVoices[note] = synth;
+
+            ~roliSineVoices[channelKey] = (note: note, synth: synth);
+
             synth.onFree({
                 {
-                    ~roliSineVoices.removeAt(note);
+                    var current = ~roliSineVoices[channelKey];
+                    if(current.notNil) {
+                        if(current.isKindOf(Synth)) {
+                            if(current === synth) {
+                                ~roliSineVoices.removeAt(channelKey);
+                            };
+                        } {
+                            if(current[\synth] === synth) {
+                                ~roliSineVoices.removeAt(channelKey);
+                            };
+                        };
+                    };
                 }.defer;
             });
         };
@@ -50,28 +96,52 @@ if(MIDIClient.initialized.not) {
 
     ~midiResponders.add(MIDIFunc.polytouch({ |pressure, note, channel, src|
         if(matchDevice.(src)) {
-            var synth = ~roliSineVoices[note];
+            var channelKey = channel;
+            var state = ensureChannelState.(channelKey);
             var mod = pressure.linlin(0, 127, 0, 1).clip(0, 1);
-            if(synth.notNil) {
-                synth.tryPerform(\set, \modAmp, mod);
+            var voice = ~roliSineVoices[channelKey];
+            state[\pressure] = mod;
+            if(voice.notNil and: { voice[\note] == note }) {
+                voice[\synth].tryPerform(\set, \modAmp, mod);
             };
         };
     }));
 
     ~midiResponders.add(MIDIFunc.touch({ |pressure, channel, src|
         if(matchDevice.(src)) {
+            var channelKey = channel;
+            var state = ensureChannelState.(channelKey);
             var mod = pressure.linlin(0, 127, 0, 1).clip(0, 1);
-            ~roliSineVoices.do { |voice|
-                voice.tryPerform(\set, \modAmp, mod);
+            var voice = ~roliSineVoices[channelKey];
+            state[\pressure] = mod;
+            if(voice.notNil) {
+                voice[\synth].tryPerform(\set, \modAmp, mod);
+            };
+        };
+    }));
+
+    ~midiResponders.add(MIDIFunc.bend({ |value, channel, src|
+        if(matchDevice.(src)) {
+            var channelKey = channel;
+            var state = ensureChannelState.(channelKey);
+            var bend = value.linlin(0, 16383, -~mpePitchBendRange, ~mpePitchBendRange);
+            var voice = ~roliSineVoices[channelKey];
+            state[\bend] = bend;
+            if(voice.notNil) {
+                voice[\synth].tryPerform(\set, \bend, bend);
             };
         };
     }));
 
     ~midiResponders.add(MIDIFunc.noteOff({ |velocity, note, channel, src|
         if(matchDevice.(src)) {
-            var synth = ~roliSineVoices.removeAt(note);
-            if(synth.notNil) {
-                synth.tryPerform(\set, \modAmp, 0, \gate, 0);
+            var channelKey = channel;
+            var voice = ~roliSineVoices[channelKey];
+            if(voice.notNil) {
+                var synth = voice.isKindOf(Synth).if({ voice }, { voice[\synth] });
+                if(voice.isKindOf(Synth) or: { voice[\note] == note }) {
+                    synth.tryPerform(\set, \modAmp, 0, \gate, 0);
+                };
             };
         };
     }));
@@ -79,5 +149,7 @@ if(MIDIClient.initialized.not) {
     CmdPeriod.doOnce({
         ~midiResponders.tryPerform(\do, _.tryPerform(\free));
         ~midiResponders = nil;
+        ~mpeChannelState = nil;
+        ~roliSineVoices = nil;
     });
 };
