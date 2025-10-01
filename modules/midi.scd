@@ -4,6 +4,46 @@ if(MIDIClient.initialized.not) {
 
 ~midiNoteKey = { |channel, note| "%:%".format(channel, note) };
 
+~midiGetAftertouchState = { |channel|
+    var state;
+
+    if(~midiAftertouchLevels.isNil) {
+        ~midiAftertouchLevels = IdentityDictionary.new;
+    };
+
+    state = ~midiAftertouchLevels[channel];
+
+    if(state.isNil) {
+        state = IdentityDictionary.new;
+        state[\channel] = 1;
+        ~midiAftertouchLevels[channel] = state;
+    };
+
+    ^state;
+};
+
+~midiGetAftertouchLevel = { |channel, note|
+    var state = ~midiGetAftertouchState.(channel);
+    ^state[note] ?? { state[\channel] ?? { 1 } };
+};
+
+~midiSetChannelAftertouch = { |channel, level|
+    ~midiGetAftertouchState.(channel)[\channel] = level;
+};
+
+~midiSetNoteAftertouch = { |channel, note, level|
+    ~midiGetAftertouchState.(channel)[note] = level;
+};
+
+~midiClearNoteAftertouch = { |channel, note|
+    var state;
+
+    if(~midiAftertouchLevels.isNil) { ^nil };
+
+    state = ~midiAftertouchLevels[channel];
+    state.tryPerform(\removeAt, note);
+};
+
 ~releaseMidiNote = { |channel, note|
     var dict = ~midiActiveSynths;
     var key, synth;
@@ -17,6 +57,8 @@ if(MIDIClient.initialized.not) {
         synth.tryPerform(\set, \gate, 0);
         synth.tryPerform(\release);
     };
+
+    ~midiClearNoteAftertouch.(channel, note);
 };
 
 ~setupMidi = {
@@ -68,7 +110,7 @@ if(MIDIClient.initialized.not) {
                     \freq, freq,
                     \amp, amp,
                     \out, outBus,
-                    \aftertouchAmp, (~midiAftertouchLevels[channel] ?? { 1 })
+                    \aftertouchAmp, ~midiGetAftertouchLevel.(channel, note)
                 ]);
 
                 ~midiActiveSynths[key] = synth;
@@ -87,13 +129,27 @@ if(MIDIClient.initialized.not) {
             var level = value.linlin(0, 127, 0, 1);
             var prefix = channel.asString ++ ":";
 
-            ~midiAftertouchLevels[channel] = level;
+            ~midiSetChannelAftertouch.(channel, level);
 
             ~midiActiveSynths.keysValuesDo { |key, synth|
                 if(key.beginsWith(prefix)) {
-                    synth.tryPerform(\set, \aftertouchAmp, level);
+                    var parts = key.split($:);
+                    var note = parts.at(1).tryPerform(\asInteger);
+                    var noteLevel = ~midiGetAftertouchLevel.(channel, note);
+                    synth.tryPerform(\set, \aftertouchAmp, noteLevel);
                 };
             };
+        };
+    }));
+
+    ~midiResponders.add(MIDIFunc.polyTouch({ |value, note, channel, src|
+        if(matchDevice.(src)) {
+            var level = value.linlin(0, 127, 0, 1);
+            var key = ~midiNoteKey.(channel, note);
+            var synth = ~midiActiveSynths[key];
+
+            ~midiSetNoteAftertouch.(channel, note, level);
+            synth.tryPerform(\set, \aftertouchAmp, level);
         };
     }));
 
