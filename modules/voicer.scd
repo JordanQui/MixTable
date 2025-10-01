@@ -33,7 +33,7 @@
 	};
 
 	MIDIdef.noteOn(\roliOn ++ out, { |vel, noteNum, chan|
-		// "noteOn: % % %\n".postf(noteNum, vel, chan);
+		"noteOn: % % %\n".postf(noteNum, vel, chan);
 		voicer.makeNote(chan, noteNum, vel);
 	},srcID:uid).enable;
 
@@ -48,7 +48,7 @@
 	},1,srcID:uid).enable;
 
 	MIDIdef.touch(\roliTouch ++ out, { |val, chan, src|
-		("touch " + val + chan).postln;
+		//("touch " + val + chan).postln;
 		voicer.setTouch(chan, val);
 	},srcID:uid).enable;
 	MIDIdef.bend(\roliBend ++ out, { |bend, chan|
