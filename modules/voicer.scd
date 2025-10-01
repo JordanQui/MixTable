@@ -34,7 +34,7 @@
         };
 
         midiDefs[\noteOn] = MIDIdef.noteOn(\roliOn ++ out, { |vel, noteNum, chan|
-                // "noteOn: % % %\n".postf(noteNum, vel, chan);
+                "noteOn: % % %\n".postf(noteNum, vel, chan);
                 voicer.makeNote(chan, noteNum, vel);
         },srcID:uid).enable;
 
