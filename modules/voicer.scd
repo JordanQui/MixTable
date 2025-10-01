@@ -3,14 +3,22 @@
     var midiDefs = IdentityDictionary.new;
     var voices = IdentityDictionary.new;
 
-    voicer.voices = voices;
+    voicer.put(\voices, voices);
 
     voicer[\makeNote] = { |q, chan, note = 60, vel = 64|
         var velocity = vel.max(1) / 127; // avoid a zero velocity on note-on
         var freq = (note + ~rootNote).keyToDegree(~scale, 12).degreeToKey(~scale).midicps;
         var existing = voices[chan];
+        var targetGroup = voicer.at(\group);
 
         existing.tryPerform(\release, 0.1);
+
+        targetGroup = targetGroup ?? { s.defaultGroup };
+
+        if(targetGroup.isNil) {
+            ("Aucun groupe de destination valide pour la voix MIDI (canal %).".format(chan)).warn;
+            ^nil;
+        };
 
         voices[chan] = Synth(\roli_kaivoY001, [
             \freq, freq,
@@ -20,7 +28,7 @@
             \pan, 0,
             \gate, 1,
             \out, out
-        ], target: voicer.group ?? { s.defaultGroup });
+        ], target: targetGroup);
     };
     voicer[\endNote] = { |q, chan|
         var synth = voices.removeAt(chan);
@@ -59,7 +67,7 @@
         voicer[\setBend].tryPerform(\value, voicer, chan, bend);
     }, srcID: uid).enable;
 
-    voicer.midiDefs = midiDefs;
-    voicer.uid = uid;
-    voicer.out = out;
+    voicer.put(\midiDefs, midiDefs);
+    voicer.put(\uid, uid);
+    voicer.put(\out, out);
 };
