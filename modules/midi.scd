@@ -42,6 +42,8 @@ if(MIDIClient.initialized.not) {
                 var freq = note.midicps;
                 var amp = velocity.linlin(1, 127, 0.02, 0.5);
                 var outBus = ~directBus ?? { 0 };
+                var existingSynth = ~activeMidiSynths.removeAt(key);
+                existingSynth.tryPerform(\set, \gate, 0);
                 var synth = Synth(\percussiveSine, [
                     \freq, freq,
                     \amp, amp,
