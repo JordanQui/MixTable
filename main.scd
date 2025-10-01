@@ -10,6 +10,7 @@ s.options.numInputBusChannels = 8;
 // ======================
 // Initialisation
 // ======================
+s.latency = 0.1;
 ~scale = Scale.chromatic;
 ~scale.tuning_(\et12);
 ~rootNote = 0;
