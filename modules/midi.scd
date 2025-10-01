@@ -8,10 +8,12 @@ if(MIDIClient.initialized.not) {
     ~midiResponders.tryPerform(\do, _.tryPerform(\free));
     ~midiResponders = List.new;
 
-    ~activeMidiSynths.tryPerform(\valuesDo, { |synth|
+    ~activeMidiSynths.tryPerform(\valuesDo, { |entry|
+        var synth = entry.tryPerform(\at, \synth) ?? { entry };
         synth.tryPerform(\set, \gate, 0);
     });
     ~activeMidiSynths = Dictionary.new;
+    ~midiCCValues = IdentityDictionary.new;
 
     MIDIIn.disconnectAll;
     MIDIIn.connectAll;
@@ -39,27 +41,52 @@ if(MIDIClient.initialized.not) {
         if(deviceMatches) {
             var key = makeKey.(src, channel, note);
             if(velocity <= 0) {
-                var synth = ~activeMidiSynths.removeAt(key);
+                var entry = ~activeMidiSynths.removeAt(key);
+                var synth = entry.tryPerform(\at, \synth) ?? { entry };
                 ("[MIDI] noteOn treated as noteOff key:% synth:%"
                     .format(key, synth)).postln;
                 synth.tryPerform(\set, \gate, 0);
             } {
-                var freq, amp, outBus, existingSynth, synth;
+                var freq, amp, outBus, existingEntry, existingSynth, synth, synthKey, config;
+                var ccValue, args, channelCCValue, ccParam, ccDefault, ccMap, extraArgs;
                 freq = note.midicps;
                 amp = velocity.linlin(1, 127, 0.02, 0.5);
                 outBus = ~directBus ?? { 0 };
-                existingSynth = ~activeMidiSynths.removeAt(key);
+                existingEntry = ~activeMidiSynths.removeAt(key);
+                existingSynth = existingEntry.tryPerform(\at, \synth) ?? { existingEntry };
                 ("[MIDI] stopping existing synth for key:% -> %"
                     .format(key, existingSynth)).postln;
                 existingSynth.tryPerform(\set, \gate, 0);
-                synth = Synth(\percussiveSine, [
+                synthKey = ~midiSynthRouting[channel] ?? { ~defaultMidiSynth };
+                if(synthKey.respondsTo(\asSymbol)) {
+                    synthKey = synthKey.asSymbol;
+                } {
+                    synthKey = ~defaultMidiSynth;
+                };
+                config = ~midiSynthConfigs[synthKey] ?? { IdentityDictionary.new };
+                ccParam = config[\ccParam];
+                ccMap = config[\ccMap] ?? { |val| val };
+                ccDefault = config[\ccDefault] ?? { 64 };
+                channelCCValue = ~midiCCValues[channel];
+                if(channelCCValue.isNil) {
+                    channelCCValue = ccDefault;
+                    ~midiCCValues[channel] = channelCCValue;
+                };
+                ccValue = ccMap.(channelCCValue);
+                extraArgs = config[\extraArgs].tryPerform(\value, freq, velocity, amp) ?? { [] };
+                args = [
                     \freq, freq,
                     \amp, amp,
                     \out, outBus
-                ]);
-                ("[MIDI] started synth % for key:% freq:% amp:% out:%"
-                    .format(synth, key, freq, amp, outBus)).postln;
-                ~activeMidiSynths[key] = synth;
+                ];
+                if(ccParam.notNil) {
+                    args = args ++ [ccParam, ccValue];
+                };
+                args = args ++ extraArgs;
+                synth = Synth(synthKey, args);
+                ("[MIDI] started % synth % for key:% freq:% amp:% out:% ccValue:%"
+                    .format(synthKey, synth, key, freq, amp, outBus, ccValue)).postln;
+                ~activeMidiSynths[key] = (synth: synth, type: synthKey, channel: channel);
             };
         } {
             ("[MIDI] noteOn ignored - device mismatch for src:%"
@@ -73,7 +100,8 @@ if(MIDIClient.initialized.not) {
             .format(src, channel, note, velocity, deviceMatches)).postln;
         if(deviceMatches) {
             var key = makeKey.(src, channel, note);
-            var synth = ~activeMidiSynths.removeAt(key);
+            var entry = ~activeMidiSynths.removeAt(key);
+            var synth = entry.tryPerform(\at, \synth) ?? { entry };
             ("[MIDI] noteOff releasing synth for key:% -> %"
                 .format(key, synth)).postln;
             synth.tryPerform(\set, \gate, 0);
@@ -83,12 +111,37 @@ if(MIDIClient.initialized.not) {
         };
     }));
 
+    ~midiResponders.add(MIDIFunc.cc({ |value, ccNum, channel, src|
+        var deviceMatches = matchDevice.(src);
+        ("[MIDI] cc src:% channel:% cc:% value:% match:%"
+            .format(src, channel, ccNum, value, deviceMatches)).postln;
+        if(deviceMatches) {
+            ~midiCCValues[channel] = value;
+            ~activeMidiSynths.tryPerform(\valuesDo, { |entry|
+                var synth = entry.tryPerform(\at, \synth);
+                var type = entry.tryPerform(\at, \type);
+                var entryChannel = entry.tryPerform(\at, \channel);
+                var config, ccParam, ccMap;
+                if((synth.notNil) and: { entryChannel == channel }) {
+                    config = ~midiSynthConfigs[type] ?? { IdentityDictionary.new };
+                    ccParam = config[\ccParam];
+                    ccMap = config[\ccMap] ?? { |val| val };
+                    if(ccParam.notNil) {
+                        synth.tryPerform(\set, ccParam, ccMap.(value));
+                    };
+                };
+            });
+        };
+    }, 74));
+
     CmdPeriod.doOnce({
         ~midiResponders.tryPerform(\do, _.tryPerform(\free));
         ~midiResponders = nil;
-        ~activeMidiSynths.tryPerform(\valuesDo, { |synth|
+        ~activeMidiSynths.tryPerform(\valuesDo, { |entry|
+            var synth = entry.tryPerform(\at, \synth) ?? { entry };
             synth.tryPerform(\set, \gate, 0);
         });
         ~activeMidiSynths = nil;
+        ~midiCCValues = nil;
     });
 };
