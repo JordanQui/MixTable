@@ -34,6 +34,7 @@ if(MIDIClient.initialized.not) {
     };
 
     ~midiActiveSynths = Dictionary.new;
+    ~midiAftertouchLevels = IdentityDictionary.new;
 
     MIDIIn.disconnectAll;
     MIDIIn.connectAll;
@@ -66,7 +67,8 @@ if(MIDIClient.initialized.not) {
                 synth = Synth(\percussiveSine, [
                     \freq, freq,
                     \amp, amp,
-                    \out, outBus
+                    \out, outBus,
+                    \aftertouchAmp, (~midiAftertouchLevels[channel] ?? { 1 })
                 ]);
 
                 ~midiActiveSynths[key] = synth;
@@ -80,6 +82,21 @@ if(MIDIClient.initialized.not) {
         };
     }));
 
+    ~midiResponders.add(MIDIFunc.afterTouch({ |value, channel, src|
+        if(matchDevice.(src)) {
+            var level = value.linlin(0, 127, 0, 1);
+            var prefix = channel.asString ++ ":";
+
+            ~midiAftertouchLevels[channel] = level;
+
+            ~midiActiveSynths.keysValuesDo { |key, synth|
+                if(key.beginsWith(prefix)) {
+                    synth.tryPerform(\set, \aftertouchAmp, level);
+                };
+            };
+        };
+    }));
+
     CmdPeriod.doOnce({
         ~midiResponders.tryPerform(\do, _.tryPerform(\free));
         ~midiResponders = nil;
@@ -89,5 +106,6 @@ if(MIDIClient.initialized.not) {
             synth.tryPerform(\free);
         });
         ~midiActiveSynths = nil;
+        ~midiAftertouchLevels = nil;
     });
 };
