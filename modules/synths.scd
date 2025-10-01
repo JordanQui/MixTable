@@ -5,90 +5,9 @@ SynthDef(\outputLimiter, { |input = 0, out = 0|
     Out.ar(out, limited.tanh);
 }).add;
 
-// ================= Voix Mutable Instruments Braids =================
-~rootNote = ~rootNote ?? { 0 };
-~scale = ~scale ?? { Scale.chromatic };
-~enableBraidsVoicer = ~enableBraidsVoicer ?? { true };
-
-SynthDef(\braidsVoice, {
-    |out = 0, freq = 440, vel = 1, amp = 1, mod = 0, bend = 0, gate = 1|
-    var pitch, env, timbre, color, trig, sig;
-    pitch = freq * bend.midiratio;
-    timbre = mod.linlin(0, 1, 0.05, 0.95);
-    color = amp.clip(0, 1);
-    trig = (vel > 0).if(1, 0);
-    env = EnvGen.kr(Env.asr(0.01, 1, 0.3), gate, doneAction: 2);
-    sig = MiBraids.ar(pitch, timbre: timbre, color: color, model: 0, trig: trig, resamp: 2);
-    sig = sig * (vel.clip(0, 1) * amp.clip(0, 1)) * env;
-    Out.ar(out, sig!2);
-}).add;
-
-~configureBraidsVoicer = {
-    |uid, voicer, bank, out|
-    var midiDefs = List.new;
-
-    voicer.indivParams;
-    voicer.roli.prime(\braidsVoice);
-
-    voicer.makeNote = { |q, chan, note = 60, vel = 64|
-        voicer.roli.put(chan, [
-            \freq, (note + ~rootNote).keyToDegree(~scale, 12).degreeToKey(~scale).midicps,
-            \vel, (vel / 127),
-            \amp, 1,
-            \gate, 1,
-            \out, out
-        ]);
-    };
-
-    voicer.endNote = { |q, chan|
-        var obj = voicer.roli.proxy.objects[chan];
-        if(obj.notNil) { obj.set(\gate, 0) };
-    };
-
-    voicer.setTouch = { |q, chan = 0, touchval = 64|
-        var obj = voicer.roli.proxy.objects[chan];
-        if(obj.notNil) { obj.set(\amp, (touchval / 127)) };
-    };
-
-    voicer.setSlide = { |q, chan = 0, slide = 0|
-        var obj = voicer.roli.proxy.objects[chan];
-        if(obj.notNil) { obj.set(\mod, (slide / 127)) };
-    };
-
-    voicer.setBend = { |q, chan = 0, bendval = 0|
-        var obj = voicer.roli.proxy.objects[chan];
-        if(obj.notNil) {
-            obj.set(\bend, bendval.linlin(0, 16383, -36, 36))
-        };
-    };
-
-    midiDefs.add(MIDIdef.noteOn(\roliOn ++ out, { |vel, noteNum, chan|
-        voicer.makeNote(chan, noteNum, vel);
-    }, srcID: uid).enable);
-
-    midiDefs.add(MIDIdef.noteOff(\roliOff ++ out, { |vel, noteNum, chan|
-        voicer.endNote(chan, noteNum);
-    }, srcID: uid).enable);
-
-    midiDefs.add(MIDIdef.cc(\roliSlide ++ out, { |val, ccnum, chan|
-        voicer.setSlide(chan, val);
-    }, 1, srcID: uid).enable);
-
-    midiDefs.add(MIDIdef.touch(\roliTouch ++ out, { |val, chan, src|
-        voicer.setTouch(chan, val);
-    }, srcID: uid).enable);
-
-    midiDefs.add(MIDIdef.bend(\roliBend ++ out, { |bend, chan|
-        voicer.setBend(chan, bend);
-    }, srcID: uid).enable);
-
-    midiDefs
-};
-
 // ================= Mixage et gestion des bus =================
 
 // Définitions des tranches d'entrée : 1 (mono), 3/4, 5/6, 7/8
-~braidsMidiDefs = ~braidsMidiDefs ?? { List.new };
 
 ~defaultMixInputs = [
     (label: "1",     channels: [0, 0], isMono: 1, useSoundIn: 1),
@@ -141,7 +60,7 @@ SynthDef(\mixChannel, {
 
 ~setupAudio = {
     // Nettoyage si nécessaire
-    [~channelSynths, ~limiterSynth, ~braidsVoicer].do { |item|
+    [~channelSynths, ~limiterSynth].do { |item|
         if(item.notNil) {
             if(item.isKindOf(Array)) {
                 item.do(_.tryPerform(\free));
@@ -151,14 +70,10 @@ SynthDef(\mixChannel, {
         };
     };
 
-    ~braidsVoicer = nil;
-
-    ~braidsMidiDefs.do { |def| def.tryPerform(\free) };
-    ~braidsMidiDefs = List.new;
+    ~teardownBraidsVoicer.value;
 
     [~voiceGroup, ~inputGroup, ~outputGroup].do(_.tryPerform(\free));
-    [~mixBus, ~voiceBus].do { |bus| bus.tryPerform(\free) };
-    ~voiceBus = nil;
+    ~mixBus.tryPerform(\free);
 
     // S'assurer que toutes les définitions de synthés précédemment envoyées
     // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
@@ -172,40 +87,7 @@ SynthDef(\mixChannel, {
     ~inputGroup = Group.after(~voiceGroup);
     ~outputGroup = Group.after(~inputGroup);
 
-    if(~enableBraidsVoicer ?? { true }) {
-        if(thisProcess.interpreter.notNil and: { NPVoicer.notNil }) {
-            var iacSource, uid;
-            MIDIClient.init;
-            iacSource = MIDIClient.sources.detect { |src|
-                var name = [src.device, src.name].collect(_.asString).join(" ");
-                name.contains("IAC");
-            };
-            if(iacSource.notNil) {
-                uid = iacSource.uid;
-                ~voiceBus = Bus.audio(s, 2);
-                ~mixInputs[0] = ~mixInputs[0].copy.putAll((
-                    label: "NPV Braids",
-                    channels: [~voiceBus.index, ~voiceBus.index + 1],
-                    isMono: 0,
-                    useSoundIn: 0
-                ));
-                ~braidsVoicer = NPVoicer(15, \braidsVoice, target: ~voiceGroup, out: ~voiceBus.index);
-                if(~braidsVoicer.notNil) {
-                    ~braidsMidiDefs.do { |def| def.tryPerform(\free) };
-                    ~braidsMidiDefs = ~configureBraidsVoicer.value(uid, ~braidsVoicer, nil, ~voiceBus.index);
-                } {
-                    "Impossible de créer le NPVoicer pour la voix Braids.".warn;
-                    ~mixInputs[0] = ~defaultMixInputs[0].copy;
-                    ~voiceBus.tryPerform(\free);
-                    ~voiceBus = nil;
-                };
-            } {
-                "Aucune source MIDI IAC trouvée pour le NPVoicer.".warn;
-            };
-        } {
-            "NPVoicer n'est pas disponible dans cet environnement.".warn;
-        };
-    };
+    ~setupBraidsVoicer.value(~voiceGroup, ~mixInputs, 0, ~defaultMixInputs[0]);
 
     ~channelStates = Array.fill(~mixInputs.size, {
         var eqState = IdentityDictionary.new;
@@ -289,15 +171,13 @@ SynthDef(\mixChannel, {
     };
 
     CmdPeriod.doOnce({
-        [~channelSynths, ~limiterSynth, ~braidsVoicer].do { |item|
+        [~channelSynths, ~limiterSynth].do { |item|
             if(item.notNil) {
                 if(item.isKindOf(Array)) { item.do(_.tryPerform(\free)) } { item.tryPerform(\free) };
             };
         };
-        ~braidsMidiDefs.do { |def| def.tryPerform(\free) };
-        [~mixBus, ~voiceBus].do { |bus| bus.tryPerform(\free) };
+        ~teardownBraidsVoicer.value;
+        [~mixBus].do { |bus| bus.tryPerform(\free) };
         [~voiceGroup, ~inputGroup, ~outputGroup].do(_.tryPerform(\free));
-        ~voiceBus = nil;
-        ~braidsVoicer = nil;
     });
 };

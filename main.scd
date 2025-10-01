@@ -11,6 +11,7 @@ s.options.numInputBusChannels = 8;
 // Initialisation
 // ======================
 ~bootMixTable = {
+    ("modules/braidsVoicer.scd").loadRelative;
     ("modules/synths.scd").loadRelative;
     ("modules/ui.scd").loadRelative;
 
