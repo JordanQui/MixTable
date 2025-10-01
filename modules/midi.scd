@@ -36,6 +36,7 @@ if(MIDIClient.initialized.not) {
             synth = Synth(\percussiveSine, [
                 \freq, freq,
                 \amp, amp,
+				\gate, 1,
                 \out, outBus
             ]);
             ~roliSineVoices[note] = synth;
@@ -70,7 +71,7 @@ if(MIDIClient.initialized.not) {
         if(matchDevice.(src)) {
             var synth = ~roliSineVoices.removeAt(note);
             if(synth.notNil) {
-                synth.tryPerform(\set, \modAmp, 0);
+                synth.tryPerform(\set, \modAmp, 0, \gate, 0);
             };
         };
     }));
