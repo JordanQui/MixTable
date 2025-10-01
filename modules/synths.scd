@@ -25,14 +25,16 @@ SynthDef(\mixChannel, {
     mid1Freq = 500, mid1RQ = 1, mid1Gain = 0,
     mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
     highFreq = 8000, highRQ = 1, highGain = 0|
-    var stereo, mono, sig, muteLevel;
-    if(useSoundIn > 0.5) {
-        stereo = SoundIn.ar([inA, inB]);
-        mono = SoundIn.ar(inA) ! 2;
-    } {
-        stereo = In.ar(inA, 2);
-        mono = In.ar(inA, 1) ! 2;
-    };
+    var stereo, mono, sig, muteLevel, inputSelect;
+    inputSelect = Lag.kr(useSoundIn.clip(0, 1), 0.05);
+    stereo = SelectX.ar(inputSelect, [
+        In.ar(inA, 2),
+        SoundIn.ar([inA, inB])
+    ]);
+    mono = SelectX.ar(inputSelect, [
+        In.ar(inA, 1) ! 2,
+        SoundIn.ar(inA) ! 2
+    ]);
     sig = (stereo * (1 - isMono)) + (mono * isMono);
     sig = BLowShelf.ar(sig, lowFreq, lowRQ, lowGain.lag(0.1));
     sig = BPeakEQ.ar(sig, mid1Freq, mid1RQ, mid1Gain.lag(0.1));
