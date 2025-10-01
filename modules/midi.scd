@@ -3,7 +3,7 @@ if(MIDIClient.initialized.not) {
 };
 
 ~setupMidi = {
-    var matchDevice, makeKey;
+    var matchDevice, makeKey, spawnMidiSynth;
 
     ~midiResponders.tryPerform(\do, _.tryPerform(\free));
     ~midiResponders = List.new;
@@ -18,6 +18,21 @@ if(MIDIClient.initialized.not) {
 
     makeKey = { |src, channel, note|
         "%:%:%".format(src, channel, note);
+    };
+
+    spawnMidiSynth = { |freq, amp, outBus, velocity = 0|
+        var synthKey, registry, entry, argBuilder, args;
+
+        registry = ~midiSynthRegistry ?? { Dictionary.new };
+        synthKey = ~currentMidiSynth.tryPerform(\value) ?? {
+            (~currentMidiSynth ? \percussiveSine)
+        };
+        entry = registry[synthKey];
+        argBuilder = entry.tryPerform(\at, \makeArgs);
+        args = argBuilder.tryPerform(\value, freq, amp, outBus, velocity) ?? {
+            [\freq, freq, \amp, amp, \out, outBus]
+        };
+        Synth(synthKey, args);
     };
 
     matchDevice = { |src|
@@ -52,11 +67,7 @@ if(MIDIClient.initialized.not) {
                 ("[MIDI] stopping existing synth for key:% -> %"
                     .format(key, existingSynth)).postln;
                 existingSynth.tryPerform(\set, \gate, 0);
-                synth = Synth(\percussiveSine, [
-                    \freq, freq,
-                    \amp, amp,
-                    \out, outBus
-                ]);
+                synth = spawnMidiSynth.(freq, amp, outBus, velocity);
                 ("[MIDI] started synth % for key:% freq:% amp:% out:%"
                     .format(synth, key, freq, amp, outBus)).postln;
                 ~activeMidiSynths[key] = synth;
