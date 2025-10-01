@@ -33,10 +33,15 @@ if(MIDIClient.initialized.not) {
     };
 
     ~midiResponders.add(MIDIFunc.noteOn({ |velocity, note, channel, src|
-        if(matchDevice.(src)) {
+        var deviceMatches = matchDevice.(src);
+        ("[MIDI] noteOn src:% channel:% note:% velocity:% match:%"
+            .format(src, channel, note, velocity, deviceMatches)).postln;
+        if(deviceMatches) {
             var key = makeKey.(src, channel, note);
             if(velocity <= 0) {
                 var synth = ~activeMidiSynths.removeAt(key);
+                ("[MIDI] noteOn treated as noteOff key:% synth:%"
+                    .format(key, synth)).postln;
                 synth.tryPerform(\set, \gate, 0);
             } {
                 var freq, amp, outBus, existingSynth, synth;
@@ -44,22 +49,37 @@ if(MIDIClient.initialized.not) {
                 amp = velocity.linlin(1, 127, 0.02, 0.5);
                 outBus = ~directBus ?? { 0 };
                 existingSynth = ~activeMidiSynths.removeAt(key);
+                ("[MIDI] stopping existing synth for key:% -> %"
+                    .format(key, existingSynth)).postln;
                 existingSynth.tryPerform(\set, \gate, 0);
                 synth = Synth(\percussiveSine, [
                     \freq, freq,
                     \amp, amp,
                     \out, outBus
                 ]);
+                ("[MIDI] started synth % for key:% freq:% amp:% out:%"
+                    .format(synth, key, freq, amp, outBus)).postln;
                 ~activeMidiSynths[key] = synth;
             };
+        } {
+            ("[MIDI] noteOn ignored - device mismatch for src:%"
+                .format(src)).postln;
         };
     }));
 
     ~midiResponders.add(MIDIFunc.noteOff({ |velocity, note, channel, src|
-        if(matchDevice.(src)) {
+        var deviceMatches = matchDevice.(src);
+        ("[MIDI] noteOff src:% channel:% note:% velocity:% match:%"
+            .format(src, channel, note, velocity, deviceMatches)).postln;
+        if(deviceMatches) {
             var key = makeKey.(src, channel, note);
             var synth = ~activeMidiSynths.removeAt(key);
+            ("[MIDI] noteOff releasing synth for key:% -> %"
+                .format(key, synth)).postln;
             synth.tryPerform(\set, \gate, 0);
+        } {
+            ("[MIDI] noteOff ignored - device mismatch for src:%"
+                .format(src)).postln;
         };
     }));
 
