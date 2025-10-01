@@ -1,4 +1,4 @@
-~makeRoliVoice =
+~makeVoice =
 	{|uid, voicer, bank, out|
 
 	voicer.indivParams;
