@@ -103,8 +103,8 @@ SynthDef(\braidsVoice, {
     };
 
     voicer.endNote = { |q, chan|
-        ("MIDI NoteOff reçu – Chan: %".format(chan)).postln;
         var obj, synth;
+        ("MIDI NoteOff reçu – Chan: %".format(chan)).postln;
         if(useRoli) {
             obj = roliProxyProxy.objects[chan];
             if(obj.notNil) { obj.set(\gate, 0) };
@@ -115,8 +115,8 @@ SynthDef(\braidsVoice, {
     };
 
     voicer.setTouch = { |q, chan = 0, touchval = 64|
-        ("MIDI Aftertouch reçu – Chan: %, Valeur: %".format(chan, touchval)).postln;
         var obj, synth;
+        ("MIDI Aftertouch reçu – Chan: %, Valeur: %".format(chan, touchval)).postln;
         if(useRoli) {
             obj = roliProxyProxy.objects[chan];
             if(obj.notNil) { obj.set(\amp, (touchval / 127)) };
@@ -127,8 +127,8 @@ SynthDef(\braidsVoice, {
     };
 
     voicer.setSlide = { |q, chan = 0, slide = 0|
-        ("MIDI Slide reçu – Chan: %, Valeur: %".format(chan, slide)).postln;
         var obj, synth;
+        ("MIDI Slide reçu – Chan: %, Valeur: %".format(chan, slide)).postln;
         if(useRoli) {
             obj = roliProxyProxy.objects[chan];
             if(obj.notNil) { obj.set(\mod, (slide / 127)) };
@@ -139,8 +139,8 @@ SynthDef(\braidsVoice, {
     };
 
     voicer.setBend = { |q, chan = 0, bendval = 0|
-        ("MIDI Pitch Bend reçu – Chan: %, Valeur: %".format(chan, bendval)).postln;
         var obj, synth, bendAmount;
+        ("MIDI Pitch Bend reçu – Chan: %, Valeur: %".format(chan, bendval)).postln;
         bendAmount = bendval.linlin(0, 16383, -36, 36);
         if(useRoli) {
             obj = roliProxyProxy.objects[chan];
