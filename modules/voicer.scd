@@ -5,12 +5,16 @@
 
     voicer.put(\voices, voices);
 
+<<<<<<< HEAD
     voicer[\makeNote] = { |q, chan, note = 60, vel = 64|
         var velocity = vel.max(1) / 127; // avoid a zero velocity on note-on
         var freq = (note + ~rootNote).keyToDegree(~scale, 12).degreeToKey(~scale).midicps;
         var existing = voices[chan];
         var targetGroup = voicer.at(\group);
         var server;
+=======
+	voicer.synth.prime(\synth1);
+>>>>>>> 2d070a6 (update)
 
         existing.tryPerform(\release, 0.1);
 

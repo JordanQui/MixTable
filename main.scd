@@ -10,20 +10,45 @@ s.options.numInputBusChannels = 8;
 // ======================
 // Initialisation
 // ======================
+<<<<<<< HEAD
 ~bootMixTable = {
     ("config/transbus_sc1.scd").loadRelative;
     ("modules/synth.scd").loadRelative;
+=======
+~bootMixTable = Routine {
+>>>>>>> 2d070a6 (update)
     ("modules/voicer.scd").loadRelative;
     ("modules/mixer.scd").loadRelative;
     ("modules/ui.scd").loadRelative;
+	("modules/synth.scd").loadRelative;
 
     ~setupAudio.value;
     ~createUI.value;
+
+	~initMidi = {
+		MIDIClient.init;
+		MIDIClient.sources.do({|item, i|
+			// roli
+			if(item.device == "TransBus" && item.name == "SC1" , {
+				~uidRoli1 = item.uid;
+				('uid roli 1 :::::::: ' ++ ~uidRoli1).postln;
+			});
+		});
+		MIDIIn.connectAll;
+	};
+	~initMidi.value;
+	s.sync;
+	~voicer = ~voicer ? ();
+	~voicer.synth = NPVoicer( Ndef(\roli));
+	s.sync;
+	~makeVoice.value(~uidRoli1, ~voicer, 0,0);
+	s.sync;
+	~voicer.synth.prime(\synth1);
 };
 
 // ======================
 // Boot serveur
 // ======================
-s.waitForBoot({ ~bootMixTable.value });
+s.waitForBoot({ ~bootMixTable.play(AppClock) });
 
 s.makeWindow;

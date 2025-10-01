@@ -3,11 +3,18 @@ SynthDef(\roli_kaivoY001,
 out=0, gate=1, freq, buff, amp=0, mod=0, rls=3, bend=0, pan=0, ctrl1, ctrl2
 |
 
+<<<<<<< HEAD
     var sig, env, rlpfsig, rbpfsig, lfo,
 freq2 = freq * bend.midiratio;
 
 env = Env.adsr(0.1,0.3, 1, rls).kr(2,gate);
 lfo = SinOsc.ar(~tempo ? 1, 0, 1);
+=======
+    var sig, env, rlpfsig, rbpfsig,
+	freq2 = freq * bend.midiratio;
+
+	env = Env.adsr(0.1,0.3, 1, rls).kr(2,gate);
+>>>>>>> 2d070a6 (update)
 
 sig = SelectX.ar(amp.squared.lag(0.1), [
         SinOsc.ar(freq2),
