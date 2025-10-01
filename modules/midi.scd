@@ -39,12 +39,13 @@ if(MIDIClient.initialized.not) {
                 var synth = ~activeMidiSynths.removeAt(key);
                 synth.tryPerform(\set, \gate, 0);
             } {
-                var freq = note.midicps;
-                var amp = velocity.linlin(1, 127, 0.02, 0.5);
-                var outBus = ~directBus ?? { 0 };
-                var existingSynth = ~activeMidiSynths.removeAt(key);
+                var freq, amp, outBus, existingSynth, synth;
+                freq = note.midicps;
+                amp = velocity.linlin(1, 127, 0.02, 0.5);
+                outBus = ~directBus ?? { 0 };
+                existingSynth = ~activeMidiSynths.removeAt(key);
                 existingSynth.tryPerform(\set, \gate, 0);
-                var synth = Synth(\percussiveSine, [
+                synth = Synth(\percussiveSine, [
                     \freq, freq,
                     \amp, amp,
                     \out, outBus
