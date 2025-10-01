@@ -46,7 +46,7 @@
 
     outputBus = Bus.audio(s, 2);
     proxy = NodeProxy.audio(s, 2);
-    proxy.play(outputBus, 2, voiceGroup);
+    proxy.play(outputBus.index, 2, voiceGroup);
     roli = NPVoicerL(proxy, [\freq, \amp, \mod, \bend, \out]);
 
     voicer = (

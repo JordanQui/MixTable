@@ -105,7 +105,7 @@ SynthDef(\mixChannel, {
             \inA, cfg[\channels][0],
             \inB, cfg[\channels][1],
             \isMono, cfg[\isMono],
-            \outBus, ~mixBus,
+            \outBus, ~mixBus.index,
             \useSoundIn, cfg[\useSoundIn] ?? { 1 },
             \gainAmp, state[\gainDB].dbamp,
             \lowFreq, state[\eq][\low][\freq],
@@ -125,7 +125,7 @@ SynthDef(\mixChannel, {
     };
 
     ~limiterSynth = Synth(\outputLimiter, [
-        \input, ~mixBus,
+        \input, ~mixBus.index,
         \out, 0
     ], target: ~outputGroup);
 
