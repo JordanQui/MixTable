@@ -12,8 +12,14 @@ if(MIDIClient.initialized.not) {
     MIDIIn.connectAll;
 
     matchDevice = { |src|
-        src.notNil and: {
-            src.device == "TransBus" and: { src.name == "SC1" }
+        var source;
+
+        source = MIDIClient.sources.detect { |endpoint|
+            endpoint.uid == src
+        };
+
+        source.notNil and: {
+            source.device == "TransBus" and: { source.name == "SC1" }
         }
     };
 
