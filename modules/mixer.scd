@@ -7,26 +7,33 @@ SynthDef(\outputLimiter, { |input = 0, out = 0|
 
 // ================= Mixage et gestion des bus =================
 
-// Définitions des tranches d'entrée : 1 (mono), 3/4, 5/6, 7/8
+// Définitions des tranches d'entrée : 1 (interne), 3/4, 5/6, 7/8
 ~mixInputs = [
-    (label: "1",     channels: [0, 0], isMono: 1),
-    (label: "3 / 4", channels: [2, 3], isMono: 0),
-    (label: "5 / 6", channels: [4, 5], isMono: 0),
-    (label: "7 / 8", channels: [6, 7], isMono: 0)
+    (label: "1",     channels: [0, 0], isMono: 1, source: \internal),
+    (label: "3 / 4", channels: [2, 3], isMono: 0, source: \hardware),
+    (label: "5 / 6", channels: [4, 5], isMono: 0, source: \hardware),
+    (label: "7 / 8", channels: [6, 7], isMono: 0, source: \hardware)
 ];
+
+// SynthDef pour router les entrées physiques vers un bus interne
+SynthDef(\mixInputRouter, {
+    |inA = 0, inB = 1, isMono = 0, outBus = 0|
+    var stereo = SoundIn.ar([inA, inB]);
+    var mono = SoundIn.ar(inA) ! 2;
+    var sig = SelectX.ar(isMono, [stereo, mono]);
+    Out.ar(outBus, sig);
+}).add;
 
 // SynthDef pour chaque tranche d'entrée avec égalisation 4 bandes
 SynthDef(\mixChannel, {
-    |inA = 0, inB = 1, isMono = 0, outBus = 0,
+    |inputBus = 0, outBus = 0,
     gainAmp = 1, mute = 0,
     lowFreq = 120, lowRQ = 1, lowGain = 0,
     mid1Freq = 500, mid1RQ = 1, mid1Gain = 0,
     mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
     highFreq = 8000, highRQ = 1, highGain = 0|
-    var stereo, mono, sig, muteLevel;
-    stereo = SoundIn.ar([inA, inB]);
-    mono = SoundIn.ar(inA) ! 2;
-    sig = (stereo * (1 - isMono)) + (mono * isMono);
+    var sig, muteLevel;
+    sig = In.ar(inputBus, 2);
     sig = BLowShelf.ar(sig, lowFreq, lowRQ, lowGain.lag(0.1));
     sig = BPeakEQ.ar(sig, mid1Freq, mid1RQ, mid1Gain.lag(0.1));
     sig = BPeakEQ.ar(sig, mid2Freq, mid2RQ, mid2Gain.lag(0.1));
@@ -53,7 +60,7 @@ SynthDef(\mixChannel, {
 
 ~setupAudio = {
     // Nettoyage si nécessaire
-    [~channelSynths, ~limiterSynth].do { |item|
+    [~channelSynths, ~channelInputRouters, ~limiterSynth].do { |item|
         if(item.notNil) {
             if(item.isKindOf(Array)) {
                 item.do(_.tryPerform(\free));
@@ -63,7 +70,15 @@ SynthDef(\mixChannel, {
         };
     };
 
-    [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
+    if(~clearActiveMidiSynths.notNil) {
+        ~clearActiveMidiSynths.value;
+    };
+
+    if(~channelInputBuses.notNil) {
+        ~channelInputBuses.do(_.tryPerform(\free));
+    };
+
+    [~sourceGroup, ~channelGroup, ~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     ~mixBus.tryPerform(\free);
 
     // S'assurer que toutes les définitions de synthés précédemment envoyées
@@ -73,7 +88,11 @@ SynthDef(\mixChannel, {
     ~mixBus = Bus.audio(s, 2);
 
     ~inputGroup = Group.head(s);
+    ~sourceGroup = Group.head(~inputGroup);
+    ~channelGroup = Group.after(~sourceGroup);
     ~outputGroup = Group.after(~inputGroup);
+
+    ~channelInputBuses = ~mixInputs.collect { Bus.audio(s, 2) };
 
     ~channelStates = Array.fill(~mixInputs.size, {
         var eqState = IdentityDictionary.new;
@@ -86,9 +105,7 @@ SynthDef(\mixChannel, {
     ~channelSynths = ~mixInputs.collect { |cfg, index|
         var state = ~channelStates[index];
         Synth(\mixChannel, [
-            \inA, cfg[\channels][0],
-            \inB, cfg[\channels][1],
-            \isMono, cfg[\isMono],
+            \inputBus, ~channelInputBuses[index].index,
             \outBus, ~mixBus,
             \gainAmp, state[\gainDB].dbamp,
             \lowFreq, state[\eq][\low][\freq],
@@ -104,7 +121,24 @@ SynthDef(\mixChannel, {
             \highRQ, (state[\eq][\high][\q] ?? { 1 }).reciprocal,
             \highGain, state[\eq][\high][\gain],
             \mute, state[\muted]
-        ], target: ~inputGroup);
+        ], target: ~channelGroup, addAction: \addToTail);
+    };
+
+    ~channelInputRouters = ~mixInputs.collect { |cfg, index|
+        if((cfg[\source] ?? { \hardware }) == \hardware) {
+            Synth(\mixInputRouter, [
+                \inA, cfg[\channels][0],
+                \inB, cfg[\channels][1],
+                \isMono, cfg[\isMono],
+                \outBus, ~channelInputBuses[index].index
+            ], target: ~sourceGroup, addAction: \addToTail);
+        } {
+            nil
+        }
+    };
+
+    if(~setMidiRouting.notNil) {
+        ~setMidiRouting.value(~channelInputBuses[0], ~sourceGroup);
     };
 
     ~limiterSynth = Synth(\outputLimiter, [
@@ -156,12 +190,14 @@ SynthDef(\mixChannel, {
     };
 
     CmdPeriod.doOnce({
-        [~channelSynths, ~limiterSynth].do { |item|
+        if(~clearActiveMidiSynths.notNil) { ~clearActiveMidiSynths.value };
+        [~channelSynths, ~channelInputRouters, ~limiterSynth].do { |item|
             if(item.notNil) {
                 if(item.isKindOf(Array)) { item.do(_.tryPerform(\free)) } { item.tryPerform(\free) };
             };
         };
+        if(~channelInputBuses.notNil) { ~channelInputBuses.do(_.tryPerform(\free)) };
         [~mixBus].do { |bus| bus.tryPerform(\free) };
-        [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
+        [~sourceGroup, ~channelGroup, ~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     });
 };
