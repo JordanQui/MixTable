@@ -1,14 +1,13 @@
 // ================= Gestion MIDI pour le synthé interne =================
 
 ~configureMidiInput = {
-    MIDIClient.init;
-
     var sources = MIDIClient.sources ? Array.new;
     var sourceIndex = sources.detectIndex { |src|
         (src.device == "TransBus") and: { src.name == "SC1" }
     };
 
-    MIDIIn.disconnectAll;
+	MIDIClient.init;
+	MIDIIn.connectAll;
 
     if(sourceIndex.isNil) {
         "Source MIDI 'TransBus - SC1' introuvable.".warn;
