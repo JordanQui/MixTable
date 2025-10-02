@@ -33,11 +33,13 @@
 };
 
 ~setupMidi = {
+    var endpoint, info, defaults, srcID;
+
     [~noteOnResponder, ~noteOffResponder, ~filterCCResponder].do(_.tryPerform(\free));
     if(~clearActiveMidiSynths.notNil) { ~clearActiveMidiSynths.value };
 
     MIDIClient.init;
-    var endpoint = MIDIClient.findPort("TransBus", "SC1");
+    endpoint = MIDIClient.findPort("TransBus", "SC1");
     if(endpoint.notNil) {
         MIDIIn.connect(endpoint.uid);
         ~midiSourceID = endpoint.uid;
@@ -48,11 +50,11 @@
     };
 
     ~activeMidiSynths = IdentityDictionary.new;
-    var info = ~getCurrentMidiSynthInfo.value;
-    var defaults = info[\defaults] ?? { () };
+    info = ~getCurrentMidiSynthInfo.tryPerform(\value);
+    defaults = if(info.notNil) { info[\defaults] ?? { () } } { () };
     ~currentFilterFreq = defaults[\cutoff] ?? { 1200 };
 
-    var srcID = ~midiSourceID;
+    srcID = ~midiSourceID;
 
     ~noteOnResponder = MIDIFunc.noteOn({ |vel, note, chan, src|
         if(srcID.isNil or: { src == srcID }) {
