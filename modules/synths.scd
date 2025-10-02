@@ -21,12 +21,14 @@ SynthDef(\percussiveSine, {
 SynthDef(\membraneHit, {
     |out = 0, freq = 110, amp = 0.2, gate = 1, tension = 0.6|
     var ampEnv = EnvGen.kr(Env.asr(0.005, 1, 1.0, curve: -4), gate, doneAction: 2);
-    var exciteEnv = EnvGen.kr(Env.perc(0.001, 0.08, 1, curve: -6), gate);
-    var excitation = PinkNoise.ar(exciteEnv) * 0.35;
+    var exciteEnv = EnvGen.kr(Env.perc(0.002, 0.12, 1, curve: -6), gate);
+    var excitation = PinkNoise.ar(exciteEnv) * 0.18;
     var membrane = MembraneHexagon.ar(excitation, tension.clip(0.05, 0.99), loss: 0.9995);
     var resonated = BPF.ar(LeakDC.ar(membrane), freq.clip(40, 4000), 0.2);
-    resonated = Limiter.ar(resonated, 0.9, 0.02);
-    Out.ar(out, (resonated * ampEnv * amp).tanh ! 2);
+    resonated = Limiter.ar(resonated, 0.7, 0.015);
+    var output = resonated * ampEnv * amp;
+    output = Limiter.ar(output, 0.5, 0.01);
+    Out.ar(out, output ! 2);
 }).add;
 
 // Définition d'un synthé Karplus-Strong (Pluck)
