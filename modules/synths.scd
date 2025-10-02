@@ -71,9 +71,31 @@ SynthDef(\karplusString, {
 
 ~defaultMidiSynth = \percussiveSine;
 ~midiSynthRouting = IdentityDictionary.new;
-~midiSynthRouting[\default] = ~defaultMidiSynth;
+
+~normalizeSynthKey = ~normalizeSynthKey ?? { |key|
+    if(key.isNil) { ^nil };
+    if(key.respondsTo(\asSymbol)) { ^key.asSymbol };
+    (key.isKindOf(Symbol)).if({ key }, { nil });
+};
+
+~setCurrentSynth = { |synthKey|
+    var normalizedSynth = ~normalizeSynthKey.(synthKey);
+    if(normalizedSynth.isNil) {
+        ("[Synth] Synthé invalide %".format(synthKey)).warn;
+        ^nil;
+    };
+    if(~midiSynthLibrary.includesKey(normalizedSynth).not) {
+        ("[Synth] Synthé inconnu %".format(synthKey)).warn;
+        ^nil;
+    };
+    ~currentMidiSynthKey = normalizedSynth;
+    ~midiSynthRouting[\default] = normalizedSynth;
+    ("[Synth] Synthé courant -> %".format(normalizedSynth)).postln;
+    normalizedSynth;
+};
+
+~setCurrentSynth.(~defaultMidiSynth);
+
 ~midiSynthRouting[0] = \percussiveSine;
 ~midiSynthRouting[1] = \membraneHit;
 ~midiSynthRouting[2] = \karplusString;
-
-~currentMidiSynthKey = ~defaultMidiSynth;
