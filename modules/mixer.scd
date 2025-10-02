@@ -9,7 +9,10 @@ SynthDef(\outputLimiter, { |input = 0, out = 0|
 
 // Définitions des tranches d'entrée : 1 (mono), 3/4, 5/6, 7/8
 ~mixInputs = [
-    (label: "1",     channels: [0, 0], isMono: 1),
+    (label: "Synth", channels: [0, 1], useBus: 1, isMono: 0, busProvider: {
+        ~ensureSynthResources.tryPerform(\value);
+        ~synthBus;
+    }),
     (label: "3 / 4", channels: [2, 3], isMono: 0),
     (label: "5 / 6", channels: [4, 5], isMono: 0),
     (label: "7 / 8", channels: [6, 7], isMono: 0)
@@ -17,15 +20,19 @@ SynthDef(\outputLimiter, { |input = 0, out = 0|
 
 // SynthDef pour chaque tranche d'entrée avec égalisation 4 bandes
 SynthDef(\mixChannel, {
-    |inA = 0, inB = 1, isMono = 0, outBus = 0,
+    |inA = 0, inB = 1, isMono = 0, useBus = 0, inputBus = 0, outBus = 0,
     gainAmp = 1, mute = 0,
     lowFreq = 120, lowRQ = 1, lowGain = 0,
     mid1Freq = 500, mid1RQ = 1, mid1Gain = 0,
     mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
     highFreq = 8000, highRQ = 1, highGain = 0|
-    var stereo, mono, sig, muteLevel;
-    stereo = SoundIn.ar([inA, inB]);
-    mono = SoundIn.ar(inA) ! 2;
+    var hardwareStereo, hardwareMono, busStereo, busMono, stereo, mono, sig, muteLevel;
+    hardwareStereo = SoundIn.ar([inA, inB]);
+    hardwareMono = SoundIn.ar(inA) ! 2;
+    busStereo = In.ar(inputBus, 2);
+    busMono = busStereo[0] ! 2;
+    stereo = Select.ar(useBus, [hardwareStereo, busStereo]);
+    mono = Select.ar(useBus, [hardwareMono, busMono]);
     sig = (stereo * (1 - isMono)) + (mono * isMono);
     sig = BLowShelf.ar(sig, lowFreq, lowRQ, lowGain.lag(0.1));
     sig = BPeakEQ.ar(sig, mid1Freq, mid1RQ, mid1Gain.lag(0.1));
@@ -53,7 +60,7 @@ SynthDef(\mixChannel, {
 
 ~setupAudio = {
     // Nettoyage si nécessaire
-    [~channelSynths, ~limiterSynth].do { |item|
+    [~channelSynths, ~limiterSynth, ~midiSynth].do { |item|
         if(item.notNil) {
             if(item.isKindOf(Array)) {
                 item.do(_.tryPerform(\free));
@@ -83,12 +90,30 @@ SynthDef(\mixChannel, {
         (gainDB: 0, eq: eqState, muted: 0);
     });
 
+    ~startMidiSynth.tryPerform(\value, ~inputGroup);
+
     ~channelSynths = ~mixInputs.collect { |cfg, index|
         var state = ~channelStates[index];
+        var channels = cfg[\channels] ?? { [0, 1] };
+        var inA = channels[0];
+        var inB = channels[1];
+        var isMono = cfg[\isMono] ?? { 0 };
+        var useBus = cfg[\useBus] ?? { 0 };
+        var inputBus = if(useBus == 1) {
+            var provider = cfg[\busProvider];
+            if(provider.notNil) {
+                var bus = provider.value;
+                if(bus.notNil) { bus.index } { 0 };
+            } {
+                cfg[\busIndex] ?? { 0 };
+            };
+        } { 0 };
         Synth(\mixChannel, [
-            \inA, cfg[\channels][0],
-            \inB, cfg[\channels][1],
-            \isMono, cfg[\isMono],
+            \inA, inA,
+            \inB, inB,
+            \isMono, isMono,
+            \useBus, useBus,
+            \inputBus, inputBus,
             \outBus, ~mixBus,
             \gainAmp, state[\gainDB].dbamp,
             \lowFreq, state[\eq][\low][\freq],
@@ -156,12 +181,14 @@ SynthDef(\mixChannel, {
     };
 
     CmdPeriod.doOnce({
-        [~channelSynths, ~limiterSynth].do { |item|
+        [~channelSynths, ~limiterSynth, ~midiSynth].do { |item|
             if(item.notNil) {
                 if(item.isKindOf(Array)) { item.do(_.tryPerform(\free)) } { item.tryPerform(\free) };
             };
         };
         [~mixBus].do { |bus| bus.tryPerform(\free) };
         [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
+        ~midiSynth = nil;
     });
+    ~configureMidiInput.tryPerform(\value);
 };
