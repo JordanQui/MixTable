@@ -2,12 +2,6 @@ if(MIDIClient.initialized.not) {
     MIDIClient.init;
 };
 
-~normalizeSynthKey = { |key|
-    if(key.isNil) { ^nil };
-    if(key.respondsTo(\asSymbol)) { ^key.asSymbol };
-    (key.isKindOf(Symbol)).if({ key }, { nil });
-};
-
 ~setMidiSynthForKey = { |key, synthKey|
     var normalizedKey = ~normalizeSynthKey.(key);
     var normalizedSynth = ~normalizeSynthKey.(synthKey);
@@ -28,18 +22,11 @@ if(MIDIClient.initialized.not) {
 };
 
 ~setCurrentMidiSynth = { |synthKey|
-    var normalizedSynth = ~normalizeSynthKey.(synthKey);
-    if(normalizedSynth.isNil) {
-        ("[MIDI] Synthé invalide %".format(synthKey)).warn;
-        ^nil;
+    var result = ~setCurrentSynth.(synthKey);
+    if(result.notNil) {
+        ("[MIDI] Synthé MIDI courant -> %".format(result)).postln;
     };
-    if(~midiSynthLibrary.includesKey(normalizedSynth).not) {
-        ("[MIDI] Synthé inconnu %".format(synthKey)).warn;
-        ^nil;
-    };
-    ~currentMidiSynthKey = normalizedSynth;
-    ~midiSynthRouting[\default] = normalizedSynth;
-    ("[MIDI] Synthé MIDI courant -> %".format(normalizedSynth)).postln;
+    result;
 };
 
 ~setActiveMidiSynth = { |key| ^~setCurrentMidiSynth.(key); };
