@@ -147,6 +147,13 @@
         [control[\container], 1]
     })).margins_(10));
 
-    window.onClose = { ~mixWindow = nil; window.close };
+    window.onClose = {
+        ~mixWindow = nil;
+        {
+            ~cleanupAudio.tryPerform(\value);
+            s.quit;
+        }.fork(AppClock);
+        window.close;
+    };
     window.front;
 };

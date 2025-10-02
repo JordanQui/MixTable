@@ -51,8 +51,7 @@ SynthDef(\mixChannel, {
     high: (freqKey: \highFreq, gainKey: \highGain, qKey: \highRQ)
 );
 
-~setupAudio = {
-    // Nettoyage si nécessaire
+~cleanupAudio = {
     [~channelSynths, ~limiterSynth].do { |item|
         if(item.notNil) {
             if(item.isKindOf(Array)) {
@@ -65,6 +64,17 @@ SynthDef(\mixChannel, {
 
     [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     ~mixBus.tryPerform(\free);
+
+    ~channelSynths = nil;
+    ~limiterSynth = nil;
+    ~mixBus = nil;
+    ~inputGroup = nil;
+    ~outputGroup = nil;
+};
+
+~setupAudio = {
+    // Nettoyage si nécessaire
+    ~cleanupAudio.value;
 
     // S'assurer que toutes les définitions de synthés précédemment envoyées
     // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
@@ -155,13 +165,5 @@ SynthDef(\mixChannel, {
         };
     };
 
-    CmdPeriod.doOnce({
-        [~channelSynths, ~limiterSynth].do { |item|
-            if(item.notNil) {
-                if(item.isKindOf(Array)) { item.do(_.tryPerform(\free)) } { item.tryPerform(\free) };
-            };
-        };
-        [~mixBus].do { |bus| bus.tryPerform(\free) };
-        [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
-    });
+    CmdPeriod.doOnce({ ~cleanupAudio.value });
 };
