@@ -38,7 +38,7 @@ SynthDef(\squareLead, { |outBus = 0, freq = 440, gate = 1,
         ("Synthé MIDI courant: %".format(key)).postln;
         if(~activeMidiSynths.notNil) {
             freq = ~currentFilterFreq;
-            ~activeMidiSynths.valuesDo { |synth|
+            ~activeMidiSynths.do { |_, synth|
                 synth.tryPerform(\set, \cutoff, freq);
             };
         };
