@@ -15,6 +15,7 @@ if(MIDIClient.initialized.not) {
     });
     ~activeMidiSynths = Dictionary.new;
     ~midiCCValues = IdentityDictionary.new;
+    ~midiDefaultCCNumber = 74;
 
     MIDIIn.disconnectAll;
     MIDIIn.connectAll;
@@ -51,7 +52,7 @@ if(MIDIClient.initialized.not) {
                 synth.tryPerform(\set, \gate, 0);
             } {
                 var freq, amp, outBus, existingEntry, existingSynth, synth, synthKey, config;
-                var ccValue, args, channelCCValue, ccParam, ccDefault, ccMap, extraArgs;
+                var ccValue, args, channelValues, channelCCValue, ccParam, ccDefault, ccMap, extraArgs, ccNumber;
                 freq = note.midicps;
                 amp = velocity.linlin(1, 127, 0.02, 0.5);
                 outBus = ~directBus ?? { 0 };
@@ -69,11 +70,17 @@ if(MIDIClient.initialized.not) {
                 config = ~midiSynthConfigs[synthKey] ?? { IdentityDictionary.new };
                 ccParam = config[\ccParam];
                 ccMap = config[\ccMap] ?? { |val| val };
-                ccDefault = config[\ccDefault] ?? { 74 };
-                channelCCValue = ~midiCCValues[channel];
+                ccDefault = config[\ccDefault] ?? { ~midiDefaultCCNumber };
+                ccNumber = config[\ccNumber] ?? { ~midiDefaultCCNumber };
+                channelValues = ~midiCCValues[channel];
+                if(channelValues.isNil) {
+                    channelValues = IdentityDictionary.new;
+                    ~midiCCValues[channel] = channelValues;
+                };
+                channelCCValue = channelValues[ccNumber];
                 if(channelCCValue.isNil) {
                     channelCCValue = ccDefault;
-                    ~midiCCValues[channel] = channelCCValue;
+                    channelValues[ccNumber] = channelCCValue;
                 };
                 ccValue = ccMap.(channelCCValue);
                 extraArgs = config[\extraArgs].tryPerform(\value, freq, velocity, amp) ?? { [] };
@@ -119,23 +126,29 @@ if(MIDIClient.initialized.not) {
         ("[MIDI] cc src:% channel:% cc:% value:% match:%"
             .format(src, channel, ccNum, value, deviceMatches)).postln;
         if(deviceMatches) {
-            ~midiCCValues[channel] = value;
+            var channelValues = ~midiCCValues[channel];
+            if(channelValues.isNil) {
+                channelValues = IdentityDictionary.new;
+                ~midiCCValues[channel] = channelValues;
+            };
+            channelValues[ccNum] = value;
             ~activeMidiSynths.tryPerform(\valuesDo, { |entry|
                 var synth = entry.tryPerform(\at, \synth);
                 var type = entry.tryPerform(\at, \type);
                 var entryChannel = entry.tryPerform(\at, \channel);
-                var config, ccParam, ccMap;
+                var config, ccParam, ccMap, ccNumber;
                 if((synth.notNil) and: { entryChannel == channel }) {
                     config = ~midiSynthConfigs[type] ?? { IdentityDictionary.new };
                     ccParam = config[\ccParam];
                     ccMap = config[\ccMap] ?? { |val| val };
-                    if(ccParam.notNil) {
+                    ccNumber = config[\ccNumber] ?? { ~midiDefaultCCNumber };
+                    if((ccParam.notNil) and: { ccNum == ccNumber }) {
                         synth.tryPerform(\set, ccParam, ccMap.(value));
                     };
                 };
             });
         };
-    }, 74));
+    }));
 
     CmdPeriod.doOnce({
         ~midiResponders.tryPerform(\do, _.tryPerform(\free));

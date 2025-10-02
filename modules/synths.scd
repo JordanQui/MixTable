@@ -62,7 +62,7 @@ SynthDef(\karplusString, {
     \karplusString, (
         ccParam: \damping,
         ccDefault: 74,
-        ccMap: { |value| value.linlin(0, 127, 0.1, 0.95) },
+        ccMap: { |value| value.min(100).linlin(0, 100, 0.05, 0.99) },
         extraArgs: { [\trig, 1] }
     )
 ]);
