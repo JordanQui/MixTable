@@ -29,14 +29,15 @@ SynthDef(\squareLead, { |outBus = 0, freq = 440, gate = 1,
 ~currentMidiSynthKey = ~currentMidiSynthKey ?? { \squareLead };
 
 ~setCurrentMidiSynth = { |key|
-    var info = ~midiSynthLibrary[key];
+    var info, defaults, freq;
+    info = ~midiSynthLibrary[key];
     if(info.notNil) {
         ~currentMidiSynthKey = key;
-        var defaults = info[\defaults] ?? { () };
+        defaults = info[\defaults] ?? { () };
         ~currentFilterFreq = defaults[\cutoff] ?? { ~currentFilterFreq };
         ("Synthé MIDI courant: %".format(key)).postln;
         if(~activeMidiSynths.notNil) {
-            var freq = ~currentFilterFreq;
+            freq = ~currentFilterFreq;
             ~activeMidiSynths.valuesDo { |synth|
                 synth.tryPerform(\set, \cutoff, freq);
             };
