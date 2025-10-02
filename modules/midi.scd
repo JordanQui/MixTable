@@ -46,8 +46,8 @@ if(MIDIClient.initialized.not) {
             if(velocity <= 0) {
                 var entry = ~activeMidiSynths.removeAt(key);
                 var synth = entry.tryPerform(\at, \synth) ?? { entry };
-                /*("[MIDI] noteOn treated as noteOff key:% synth:%"
-                    .format(key, synth)).postln;*/
+                ("[MIDI] noteOn treated as noteOff key:% synth:%"
+                    .format(key, synth)).postln;
                 synth.tryPerform(\set, \gate, 0);
             } {
                 var freq, amp, outBus, existingEntry, existingSynth, synth, synthKey, config;
@@ -57,8 +57,8 @@ if(MIDIClient.initialized.not) {
                 outBus = ~directBus ?? { 0 };
                 existingEntry = ~activeMidiSynths.removeAt(key);
                 existingSynth = existingEntry.tryPerform(\at, \synth) ?? { existingEntry };
-                /*("[MIDI] stopping existing synth for key:% -> %"
-                    .format(key, existingSynth)).postln;*/
+                ("[MIDI] stopping existing synth for key:% -> %"
+                    .format(key, existingSynth)).postln;
                 existingSynth.tryPerform(\set, \gate, 0);
                 synthKey = ~midiSynthRouting[channel] ?? { ~currentMidiSynthKey ?? { ~defaultMidiSynth } };
                 if(synthKey.respondsTo(\asSymbol)) {
@@ -69,7 +69,7 @@ if(MIDIClient.initialized.not) {
                 config = ~midiSynthConfigs[synthKey] ?? { IdentityDictionary.new };
                 ccParam = config[\ccParam];
                 ccMap = config[\ccMap] ?? { |val| val };
-                ccDefault = config[\ccDefault] ?? { 64 };
+                ccDefault = config[\ccDefault] ?? { 74 };
                 channelCCValue = ~midiCCValues[channel];
                 if(channelCCValue.isNil) {
                     channelCCValue = ccDefault;
@@ -87,8 +87,8 @@ if(MIDIClient.initialized.not) {
                 };
                 args = args ++ extraArgs;
                 synth = Synth(synthKey, args);
-                /*("[MIDI] started % synth % for key:% freq:% amp:% out:% ccValue:%"
-                    .format(synthKey, synth, key, freq, amp, outBus, ccValue)).postln;*/
+                ("[MIDI] started % synth % for key:% freq:% amp:% out:% ccValue:%"
+                    .format(synthKey, synth, key, freq, amp, outBus, ccValue)).postln;
                 ~activeMidiSynths[key] = (synth: synth, type: synthKey, channel: channel);
             };
         } {
