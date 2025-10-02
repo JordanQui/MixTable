@@ -11,7 +11,7 @@ s.options.numInputBusChannels = 8;
 // Initialisation
 // ======================
 ~bootMixTable = {
-    ("modules/synths.scd").loadRelative;
+    ("modules/mixer.scd").loadRelative;
     ("modules/ui.scd").loadRelative;
 
     ~setupAudio.value;
