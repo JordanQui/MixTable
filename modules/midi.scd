@@ -15,36 +15,34 @@ if(MIDIClient.initialized.not) {
         ("[MIDI] Impossible d'enregistrer le synthé : clef invalide %".format(key)).warn;
         ^nil;
     };
-    if(normalizedSynth.isNil or: { ~midiSynthConfigs.includesKey(normalizedSynth).not }) {
+    if(normalizedSynth.isNil or: { ~midiSynthLibrary.includesKey(normalizedSynth).not }) {
         ("[MIDI] Synthé inconnu %".format(synthKey)).warn;
         ^nil;
     };
-    ~midiSynthRouting[normalizedKey] = normalizedSynth;
     if(normalizedKey == \default) {
-        ~currentMidiSynthKey = normalizedSynth;
+        ^~setCurrentMidiSynth.(normalizedSynth);
+    } {
+        ~midiSynthRouting[normalizedKey] = normalizedSynth;
+        ("[MIDI] Clef % associée au synthé %".format(normalizedKey, normalizedSynth)).postln;
     };
-    ("[MIDI] Clef % associée au synthé %".format(normalizedKey, normalizedSynth)).postln;
 };
 
-~setActiveMidiSynth = { |key|
-    var normalizedKey = ~normalizeSynthKey.(key);
-    var resolvedSynth;
-    if(normalizedKey.isNil) {
-        ("[MIDI] Clef invalide %".format(key)).warn;
+~setCurrentMidiSynth = { |synthKey|
+    var normalizedSynth = ~normalizeSynthKey.(synthKey);
+    if(normalizedSynth.isNil) {
+        ("[MIDI] Synthé invalide %".format(synthKey)).warn;
         ^nil;
     };
-    resolvedSynth = ~midiSynthConfigs.includesKey(normalizedKey).if({ normalizedKey }, {
-        ~midiSynthRouting[normalizedKey]
-    });
-    if(resolvedSynth.isNil) {
-        ("[MIDI] Aucun synthé trouvé pour la clef %".format(normalizedKey)).warn;
+    if(~midiSynthLibrary.includesKey(normalizedSynth).not) {
+        ("[MIDI] Synthé inconnu %".format(synthKey)).warn;
         ^nil;
     };
-    resolvedSynth = resolvedSynth.asSymbol;
-    ~currentMidiSynthKey = resolvedSynth;
-    ~midiSynthRouting[\default] = resolvedSynth;
-    ("[MIDI] Synthé MIDI actif -> %".format(resolvedSynth)).postln;
+    ~currentMidiSynthKey = normalizedSynth;
+    ~midiSynthRouting[\default] = normalizedSynth;
+    ("[MIDI] Synthé MIDI courant -> %".format(normalizedSynth)).postln;
 };
+
+~setActiveMidiSynth = { |key| ^~setCurrentMidiSynth.(key); };
 
 ~setupMidi = {
     var matchDevice, makeKey;
@@ -109,7 +107,7 @@ if(MIDIClient.initialized.not) {
                 } {
                     synthKey = ~defaultMidiSynth;
                 };
-                config = ~midiSynthConfigs[synthKey] ?? { IdentityDictionary.new };
+                config = ~midiSynthLibrary[synthKey] ?? { IdentityDictionary.new };
                 ccParam = config[\ccParam];
                 ccMap = config[\ccMap] ?? { |val| val };
                 ccDefault = config[\ccDefault] ?? { 74 };
@@ -169,7 +167,7 @@ if(MIDIClient.initialized.not) {
                 var entryChannel = entry.tryPerform(\at, \channel);
                 var config, ccParam, ccMap;
                 if((synth.notNil) and: { entryChannel == channel }) {
-                    config = ~midiSynthConfigs[type] ?? { IdentityDictionary.new };
+                    config = ~midiSynthLibrary[type] ?? { IdentityDictionary.new };
                     ccParam = config[\ccParam];
                     ccMap = config[\ccMap] ?? { |val| val };
                     if(ccParam.notNil) {

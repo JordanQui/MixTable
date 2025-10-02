@@ -48,7 +48,7 @@ SynthDef(\karplusString, {
 }).add;
 
 // Configuration des synthés MIDI disponibles et des paramètres modulables par CC
-~midiSynthConfigs = IdentityDictionary.newFrom([
+~midiSynthLibrary = IdentityDictionary.newFrom([
     \percussiveSine, (
         ccParam: \brightHz,
         ccDefault: 74, // valeur de CC "brightness" par défaut
