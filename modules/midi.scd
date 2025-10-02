@@ -4,14 +4,18 @@
     MIDIClient.init;
     MIDIIn.disconnectAll;
 
-    var sourceIndex = MIDIClient.sources.detectIndex { |src|
+    var sources = MIDIClient.sources;
+    if(sources.isNil) {
+        sources = Array.new;
+    };
+    var sourceIndex = sources.detectIndex { |src|
         (src.device == "TransBus") and: { src.name == "SC1" }
     };
 
     if(sourceIndex.isNil) {
         "Source MIDI 'TransBus - SC1' introuvable.".warn;
     } {
-        MIDIIn.connect(sourceIndex, MIDIClient.sources[sourceIndex]);
+        MIDIIn.connect(sourceIndex, sources[sourceIndex]);
     };
 
     MIDIIn.noteOn = { |src, chan, num, vel|
