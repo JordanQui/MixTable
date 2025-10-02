@@ -2,48 +2,8 @@ if(MIDIClient.initialized.not) {
     MIDIClient.init;
 };
 
-~normalizeSynthKey = { |key|
-    if(key.isNil) { ^nil };
-    if(key.respondsTo(\asSymbol)) { ^key.asSymbol };
-    (key.isKindOf(Symbol)).if({ key }, { nil });
-};
-
-~setMidiSynthForKey = { |key, synthKey|
-    var normalizedKey = ~normalizeSynthKey.(key);
-    var normalizedSynth = ~normalizeSynthKey.(synthKey);
-    if(normalizedKey.isNil) {
-        ("[MIDI] Impossible d'enregistrer le synthé : clef invalide %".format(key)).warn;
-        ^nil;
-    };
-    if(normalizedSynth.isNil or: { ~midiSynthConfigs.includesKey(normalizedSynth).not }) {
-        ("[MIDI] Synthé inconnu %".format(synthKey)).warn;
-        ^nil;
-    };
-    ~midiSynthRouting[normalizedKey] = normalizedSynth;
-    if(normalizedKey == \default) {
-        ~currentMidiSynthKey = normalizedSynth;
-    };
-    ("[MIDI] Clef % associée au synthé %".format(normalizedKey, normalizedSynth)).postln;
-};
-
-~setActiveMidiSynth = { |key|
-    var normalizedKey = ~normalizeSynthKey.(key);
-    var resolvedSynth;
-    if(normalizedKey.isNil) {
-        ("[MIDI] Clef invalide %".format(key)).warn;
-        ^nil;
-    };
-    resolvedSynth = ~midiSynthConfigs.includesKey(normalizedKey).if({ normalizedKey }, {
-        ~midiSynthRouting[normalizedKey]
-    });
-    if(resolvedSynth.isNil) {
-        ("[MIDI] Aucun synthé trouvé pour la clef %".format(normalizedKey)).warn;
-        ^nil;
-    };
-    resolvedSynth = resolvedSynth.asSymbol;
-    ~currentMidiSynthKey = resolvedSynth;
-    ~midiSynthRouting[\default] = resolvedSynth;
-    ("[MIDI] Synthé MIDI actif -> %".format(resolvedSynth)).postln;
+~makeMidiResponderKey = { |src, channel, note|
+    "%:%:%".format(src, channel, note).asSymbol;
 };
 
 ~setupMidi = {
@@ -51,6 +11,12 @@ if(MIDIClient.initialized.not) {
 
     ~midiResponders.tryPerform(\do, _.tryPerform(\free));
     ~midiResponders = List.new;
+
+    ~midiResponderSynths = ~midiResponderSynths ?? {
+        IdentityDictionary.newFrom([
+            \default, ~defaultMidiSynth
+        ])
+    };
 
     ~activeMidiSynths.tryPerform(\valuesDo, { |entry|
         var synth = entry.tryPerform(\at, \synth) ?? { entry };
@@ -62,9 +28,7 @@ if(MIDIClient.initialized.not) {
     MIDIIn.disconnectAll;
     MIDIIn.connectAll;
 
-    makeKey = { |src, channel, note|
-        "%:%:%".format(src, channel, note);
-    };
+    makeKey = ~makeMidiResponderKey;
 
     matchDevice = { |src|
         var source;
@@ -77,8 +41,6 @@ if(MIDIClient.initialized.not) {
             source.device == "TransBus" and: { source.name == "SC1" }
         }
     };
-
-    ~currentMidiSynthKey = ~currentMidiSynthKey ?? { ~midiSynthRouting[\default] ?? { ~defaultMidiSynth } };
 
     ~midiResponders.add(MIDIFunc.noteOn({ |velocity, note, channel, src|
         var deviceMatches = matchDevice.(src);
@@ -103,7 +65,13 @@ if(MIDIClient.initialized.not) {
                 ("[MIDI] stopping existing synth for key:% -> %"
                     .format(key, existingSynth)).postln;
                 existingSynth.tryPerform(\set, \gate, 0);
-                synthKey = ~midiSynthRouting[channel] ?? { ~currentMidiSynthKey ?? { ~defaultMidiSynth } };
+                synthKey = {
+                    var mappingKey = key;
+                    var channelKey = ("channel:%".format(channel)).asSymbol;
+                    ~midiResponderSynths[mappingKey]
+                        ?? { ~midiResponderSynths[channelKey] }
+                        ?? { ~midiResponderSynths[\default] ?? { ~defaultMidiSynth } };
+                }.value;
                 if(synthKey.respondsTo(\asSymbol)) {
                     synthKey = synthKey.asSymbol;
                 } {

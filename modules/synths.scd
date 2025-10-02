@@ -68,10 +68,10 @@ SynthDef(\karplusString, {
 ]);
 
 ~defaultMidiSynth = \percussiveSine;
-~midiSynthRouting = IdentityDictionary.new;
-~midiSynthRouting[\default] = ~defaultMidiSynth;
-~midiSynthRouting[0] = \percussiveSine;
-~midiSynthRouting[1] = \membraneHit;
-~midiSynthRouting[2] = \karplusString;
-
-~currentMidiSynthKey = ~defaultMidiSynth;
+// Routage MIDI : utiliser ~makeMidiResponderKey.(src, channel, note) pour obtenir
+// une clef unique par note. Les clefs "channel:X" fournissent un fallback par canal.
+~midiResponderSynths = IdentityDictionary.new;
+~midiResponderSynths[\default] = ~defaultMidiSynth;
+~midiResponderSynths[("channel:%".format(0)).asSymbol] = \percussiveSine;
+~midiResponderSynths[("channel:%".format(1)).asSymbol] = \membraneHit;
+~midiResponderSynths[("channel:%".format(2)).asSymbol] = \karplusString;
