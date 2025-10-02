@@ -5,11 +5,16 @@ if(MIDIClient.initialized.not) {
 ~setMidiSynthForKey = { |key, synthKey|
     var normalizedKey = ~normalizeSynthKey.(key);
     var normalizedSynth = ~normalizeSynthKey.(synthKey);
+    var library = ~midiSynthLibrary;
     if(normalizedKey.isNil) {
         ("[MIDI] Impossible d'enregistrer le synthé : clef invalide %".format(key)).warn;
         ^nil;
     };
-    if(normalizedSynth.isNil or: { ~midiSynthLibrary.includesKey(normalizedSynth).not }) {
+    if(library.isNil) {
+        ("[MIDI] Bibliothèque de synthés MIDI indisponible").warn;
+        ^nil;
+    };
+    if(normalizedSynth.isNil or: { library.includesKey(normalizedSynth).not }) {
         ("[MIDI] Synthé inconnu %".format(synthKey)).warn;
         ^nil;
     };
@@ -30,6 +35,43 @@ if(MIDIClient.initialized.not) {
 };
 
 ~setActiveMidiSynth = { |key| ^~setCurrentMidiSynth.(key); };
+
+~getDefaultMidiSynthKey = {
+    var key = ~defaultMidiSynth ?? { \percussiveSine };
+    if(key.respondsTo(\asSymbol)) {
+        ^key.asSymbol;
+    } {
+        ^\percussiveSine;
+    };
+};
+
+~getMidiSynthSelection = { |synthKey|
+    var library = ~midiSynthLibrary;
+    var defaultKey = ~getDefaultMidiSynthKey.();
+    var resolvedKey = synthKey;
+    if(library.isNil) {
+        ("[MIDI] Bibliothèque de synthés indisponible, retour à %".format(defaultKey)).warn;
+        ^(key: defaultKey, config: IdentityDictionary.new);
+    };
+    if(resolvedKey.respondsTo(\asSymbol)) {
+        resolvedKey = resolvedKey.asSymbol;
+    } {
+        resolvedKey = defaultKey;
+    };
+    if(library.includesKey(resolvedKey).not) {
+        ("[MIDI] Synthé % introuvable, retour à %".format(resolvedKey, defaultKey)).warn;
+        resolvedKey = defaultKey;
+    };
+    (key: resolvedKey, config: library[resolvedKey] ?? { IdentityDictionary.new });
+};
+
+~getCurrentMidiSynthSelection = {
+    var key = ~currentMidiSynthKey ?? { ~midiSynthRouting.tryPerform(\at, \default) };
+    if(key.isNil) {
+        key = ~getDefaultMidiSynthKey.();
+    };
+    ~getMidiSynthSelection.(key);
+};
 
 ~setupMidi = {
     var matchDevice, makeKey;
@@ -63,7 +105,10 @@ if(MIDIClient.initialized.not) {
         }
     };
 
-    ~currentMidiSynthKey = ~currentMidiSynthKey ?? { ~midiSynthRouting[\default] ?? { ~defaultMidiSynth } };
+    {
+        var selection = ~getCurrentMidiSynthSelection.();
+        ~currentMidiSynthKey = selection[\key];
+    }.value;
 
     ~midiResponders.add(MIDIFunc.noteOn({ |velocity, note, channel, src|
         var deviceMatches = matchDevice.(src);
@@ -78,7 +123,7 @@ if(MIDIClient.initialized.not) {
                     .format(key, synth)).postln;
                 synth.tryPerform(\set, \gate, 0);
             } {
-                var freq, amp, outBus, existingEntry, existingSynth, synth, synthKey, config;
+                var freq, amp, outBus, existingEntry, existingSynth, synth, synthKey, config, selection;
                 var ccValue, args, channelCCValue, ccParam, ccDefault, ccMap, extraArgs;
                 freq = note.midicps;
                 amp = velocity.linlin(1, 127, 0.02, 0.5);
@@ -88,13 +133,10 @@ if(MIDIClient.initialized.not) {
                 ("[MIDI] stopping existing synth for key:% -> %"
                     .format(key, existingSynth)).postln;
                 existingSynth.tryPerform(\set, \gate, 0);
-                synthKey = ~midiSynthRouting[channel] ?? { ~currentMidiSynthKey ?? { ~defaultMidiSynth } };
-                if(synthKey.respondsTo(\asSymbol)) {
-                    synthKey = synthKey.asSymbol;
-                } {
-                    synthKey = ~defaultMidiSynth;
-                };
-                config = ~midiSynthLibrary[synthKey] ?? { IdentityDictionary.new };
+                selection = ~getCurrentMidiSynthSelection.();
+                synthKey = selection[\key];
+                config = selection[\config];
+                ~currentMidiSynthKey = synthKey;
                 ccParam = config[\ccParam];
                 ccMap = config[\ccMap] ?? { |val| val };
                 ccDefault = config[\ccDefault] ?? { 74 };
@@ -152,9 +194,11 @@ if(MIDIClient.initialized.not) {
                 var synth = entry.tryPerform(\at, \synth);
                 var type = entry.tryPerform(\at, \type);
                 var entryChannel = entry.tryPerform(\at, \channel);
-                var config, ccParam, ccMap;
+                var configData, config, ccParam, ccMap;
                 if((synth.notNil) and: { entryChannel == channel }) {
-                    config = ~midiSynthLibrary[type] ?? { IdentityDictionary.new };
+                    configData = ~getMidiSynthSelection.(type);
+                    config = configData[\config];
+                    entry[\type] = configData[\key];
                     ccParam = config[\ccParam];
                     ccMap = config[\ccMap] ?? { |val| val };
                     if(ccParam.notNil) {
