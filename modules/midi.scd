@@ -13,10 +13,11 @@
 };
 
 ~setMidiRouting = { |bus, group|
+    var busIndex;
     ~midiOutputBus = bus;
     ~midiTargetGroup = group;
     if(~activeMidiSynths.notNil) {
-        var busIndex = if(bus.respondsTo(\index)) { bus.index } { bus ?? { 0 } };
+        busIndex = if(bus.respondsTo(\index)) { bus.index } { bus ?? { 0 } };
         ~activeMidiSynths.valuesDo { |synth|
             synth.tryPerform(\set, \outBus, busIndex);
             if(group.notNil) { synth.tryPerform(\moveToHead, group) };
@@ -57,27 +58,30 @@
     srcID = ~midiSourceID;
 
     ~noteOnResponder = MIDIFunc.noteOn({ |vel, note, chan, src|
+        var offKey, existing, synthInfo, synthDefaults, defName, ampBase, rq,
+        attack, decay, sustain, release, cutoff, busIndex, targetGroup, synth,
+        noteKey;
         if(srcID.isNil or: { src == srcID }) {
             if(vel <= 0) {
-                var offKey = (chan << 7) + note;
-                var existing = ~activeMidiSynths.removeAt(offKey);
+                offKey = (chan << 7) + note;
+                existing = ~activeMidiSynths.removeAt(offKey);
                 if(existing.notNil) { existing.tryPerform(\set, \gate, 0) };
                 ^nil;
             };
-            var synthInfo = ~midiSynthLibrary[~currentMidiSynthKey];
+            synthInfo = ~midiSynthLibrary[~currentMidiSynthKey];
             if(synthInfo.notNil) {
-                var synthDefaults = synthInfo[\defaults] ?? { () };
-                var defName = synthInfo[\defName] ?? { ~currentMidiSynthKey };
-                var ampBase = synthDefaults[\amp] ?? { 0.3 };
-                var rq = synthDefaults[\rq] ?? { 0.2 };
-                var attack = synthDefaults[\attack] ?? { 0.01 };
-                var decay = synthDefaults[\decay] ?? { 0.2 };
-                var sustain = synthDefaults[\sustain] ?? { 0.6 };
-                var release = synthDefaults[\release] ?? { 0.4 };
-                var cutoff = ~currentFilterFreq ?? { synthDefaults[\cutoff] ?? { 1200 } };
-                var busIndex = ~midiBusIndex.value;
-                var targetGroup = ~midiTargetGroup ?? { ~sourceGroup ?? { ~inputGroup } };
-                var synth = Synth(defName, [
+                synthDefaults = synthInfo[\defaults] ?? { () };
+                defName = synthInfo[\defName] ?? { ~currentMidiSynthKey };
+                ampBase = synthDefaults[\amp] ?? { 0.3 };
+                rq = synthDefaults[\rq] ?? { 0.2 };
+                attack = synthDefaults[\attack] ?? { 0.01 };
+                decay = synthDefaults[\decay] ?? { 0.2 };
+                sustain = synthDefaults[\sustain] ?? { 0.6 };
+                release = synthDefaults[\release] ?? { 0.4 };
+                cutoff = ~currentFilterFreq ?? { synthDefaults[\cutoff] ?? { 1200 } };
+                busIndex = ~midiBusIndex.value;
+                targetGroup = ~midiTargetGroup ?? { ~sourceGroup ?? { ~inputGroup } };
+                synth = Synth(defName, [
                     \outBus, busIndex,
                     \freq, note.midicps,
                     \gate, 1,
@@ -89,16 +93,17 @@
                     \sustain, sustain,
                     \release, release
                 ], target: targetGroup, addAction: \addToHead);
-                var noteKey = (chan << 7) + note;
+                noteKey = (chan << 7) + note;
                 ~activeMidiSynths[noteKey] = synth;
             };
         };
     }, srcID: srcID);
 
     ~noteOffResponder = MIDIFunc.noteOff({ |vel, note, chan, src|
+        var key, synth;
         if(srcID.isNil or: { src == srcID }) {
-            var key = (chan << 7) + note;
-            var synth = ~activeMidiSynths.removeAt(key);
+            key = (chan << 7) + note;
+            synth = ~activeMidiSynths.removeAt(key);
             if(synth.notNil) {
                 synth.tryPerform(\set, \gate, 0);
             };
@@ -106,12 +111,13 @@
     }, srcID: srcID);
 
     ~filterCCResponder = MIDIFunc.cc({ |value, ccNum, chan, src|
+        var synthInfo, synthDefaults, range, freq;
         if(srcID.isNil or: { src == srcID }) {
-            var synthInfo = ~midiSynthLibrary[~currentMidiSynthKey];
+            synthInfo = ~midiSynthLibrary[~currentMidiSynthKey];
             if(synthInfo.notNil) {
-                var synthDefaults = synthInfo[\defaults] ?? { () };
-                var range = synthDefaults[\cutoffRange] ?? { [200, 8000] };
-                var freq = value.linexp(0, 127, range[0], range[1]);
+                synthDefaults = synthInfo[\defaults] ?? { () };
+                range = synthDefaults[\cutoffRange] ?? { [200, 8000] };
+                freq = value.linexp(0, 127, range[0], range[1]);
                 ~currentFilterFreq = freq;
                 if(~activeMidiSynths.notNil) {
                     ~activeMidiSynths.valuesDo { |synth|
