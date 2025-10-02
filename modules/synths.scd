@@ -34,13 +34,14 @@ SynthDef(\karplusString, {
     |out = 0, freq = 220, amp = 0.2, gate = 1, trig = 1, decayTime = 3, damping = 0.5|
     var env = EnvGen.kr(Env.asr(0.005, 1, decayTime, curve: -4), gate, doneAction: 2);
     var excitation = WhiteNoise.ar(amp * 0.5);
+    var dampingCoef = Lag.kr(damping.clip(0.05, 0.99), 0.05);
     var sig = Pluck.ar(
         excitation,
         trig,
         (1 / 20),
         freq.reciprocal,
         decayTime.max(0.1),
-        damping.clip(0.05, 0.99)
+        dampingCoef
     );
     Out.ar(out, (sig * env).dup);
 }).add;
@@ -62,7 +63,7 @@ SynthDef(\karplusString, {
     \karplusString, (
         ccParam: \damping,
         ccDefault: 74,
-        ccMap: { |value| value.min(100).linlin(0, 100, 0.05, 0.99) },
+        ccMap: { |value| value.clip(0, 127).linlin(0, 127, 0.05, 0.99) },
         extraArgs: { [\trig, 1] }
     )
 ]);
