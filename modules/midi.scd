@@ -112,7 +112,7 @@ if(MIDIClient.initialized.not) {
                 config = ~midiSynthConfigs[synthKey] ?? { IdentityDictionary.new };
                 ccParam = config[\ccParam];
                 ccMap = config[\ccMap] ?? { |val| val };
-                ccDefault = config[\ccDefault] ?? { 64 };
+                ccDefault = config[\ccDefault] ?? { 74 };
                 channelCCValue = ~midiCCValues[channel];
                 if(channelCCValue.isNil) {
                     channelCCValue = ccDefault;

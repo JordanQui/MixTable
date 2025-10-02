@@ -55,13 +55,13 @@ SynthDef(\karplusString, {
     ),
     \membraneHit, (
         ccParam: \tension,
-        ccDefault: 64,
+        ccDefault: 74,
         ccMap: { |value| value.linlin(0, 127, 0.1, 0.95) },
         extraArgs: { [] }
     ),
     \karplusString, (
         ccParam: \damping,
-        ccDefault: 64,
+        ccDefault: 74,
         ccMap: { |value| value.linlin(0, 127, 0.1, 0.95) },
         extraArgs: { [\trig, 1] }
     )
