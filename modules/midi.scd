@@ -2,7 +2,7 @@
 
 ~clearActiveMidiSynths = {
     if(~activeMidiSynths.notNil) {
-        ~activeMidiSynths.valuesDo { |synth|
+        ~activeMidiSynths.do { |key, synth|
             synth.tryPerform(\set, \gate, 0);
             synth.tryPerform(\free);
         };
@@ -18,7 +18,7 @@
     ~midiTargetGroup = group;
     if(~activeMidiSynths.notNil) {
         busIndex = if(bus.respondsTo(\index)) { bus.index } { bus ?? { 0 } };
-        ~activeMidiSynths.valuesDo { |synth|
+        ~activeMidiSynths.do { |key, synth|
             synth.tryPerform(\set, \outBus, busIndex);
             if(group.notNil) { synth.tryPerform(\moveToHead, group) };
         };
@@ -120,7 +120,7 @@
                 freq = value.linexp(0, 127, range[0], range[1]);
                 ~currentFilterFreq = freq;
                 if(~activeMidiSynths.notNil) {
-                    ~activeMidiSynths.valuesDo { |synth|
+                    ~activeMidiSynths.do { |key, synth|
                         synth.tryPerform(\set, \cutoff, freq);
                     };
                 };
