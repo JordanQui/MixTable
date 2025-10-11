@@ -4,8 +4,10 @@
 s.options.memSize = 2.pow(21);
 s.options.numBuffers = 2048;
 s.options.numWireBufs = 64;
+s.options.outDevice = "SoundCard";
+s.options.inDevice = "SoundCard";
 s.options.numOutputBusChannels = 2;
-s.options.numInputBusChannels = 8;
+s.options.numInputBusChannels = 18;
 
 // ======================
 // Initialisation

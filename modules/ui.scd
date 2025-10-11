@@ -13,7 +13,7 @@
     ];
 
     if(~mixWindow.notNil) { ~mixWindow.close };
-    window = Window("MixTable - 4 voies", Rect(100, 100, 960, 560));
+    window = Window("MixTable - 5 voies", Rect(100, 100, 1180, 560));
     if(window.respondsTo(\resizable_)) {
         window.resizable_(true);
     } {
