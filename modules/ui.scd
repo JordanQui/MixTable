@@ -1,10 +1,12 @@
 ~createUI = {
-    var window, channelViews;
+    var window, topBar, channelArea, channelViews, recordButton;
     var windowColor = Color(0.08, 0.08, 0.1);
     var panelColor = Color(0.12, 0.12, 0.16);
     var sectionColor = Color(0.18, 0.18, 0.22);
     var accentColor = Color(0.35, 0.65, 0.95);
     var mutedColor = Color(0.8, 0.25, 0.25);
+    var recordBaseStates, recordStoppingStates;
+    var updateRecordButtonState, armRecording, cancelArming, scheduleStop, cancelStop;
     var eqSpecs = [
         (band: \high, name: "High", freqRange: [5000, 16000], gainRange: [-60, 20], qRange: [0.2, 5]),
         (band: \mid2, name: "Mid 2", freqRange: [1200, 5000], gainRange: [-60, 20], qRange: [0.2, 10]),
@@ -24,10 +26,168 @@
     window.view.background_(windowColor);
     ~mixWindow = window;
 
+    ~recordState = ~recordState ?? { \idle };
+    ~recordStartPending = false;
+    ~recordStopPending = false;
+
+    recordBaseStates = [
+        ["Record", Color.white, Color(0.8, 0.2, 0.2)],
+        ["Armé (prochaine mesure)", Color.white, Color(0.95, 0.7, 0.2)],
+        ["Enregistrement", Color.white, Color(0.2, 0.7, 0.35)]
+    ];
+
+    recordStoppingStates = [
+        ["Record", Color.white, Color(0.8, 0.2, 0.2)],
+        ["Arrêt fin mesure", Color.white, Color(0.95, 0.7, 0.2)],
+        ["Enregistrement", Color.white, Color(0.2, 0.7, 0.35)]
+    ];
+
+    topBar = CompositeView(window)
+        .background_(panelColor)
+        .maxHeight_(56);
+
+    recordButton = Button(topBar)
+        .states_(recordBaseStates.deepCopy)
+        .maxWidth_(220)
+        .minHeight_(30)
+        .font_(Font("Helvetica-Bold", 14));
+
+    updateRecordButtonState = { |state|
+        switch(state,
+            \idle, {
+                recordButton.states_(recordBaseStates.deepCopy);
+                recordButton.value_(0);
+            },
+            \arming, {
+                recordButton.states_(recordBaseStates.deepCopy);
+                recordButton.value_(1);
+            },
+            \recording, {
+                recordButton.states_(recordBaseStates.deepCopy);
+                recordButton.value_(2);
+            },
+            \stopping, {
+                recordButton.states_(recordStoppingStates.deepCopy);
+                recordButton.value_(1);
+            }
+        );
+    };
+
+    armRecording = {
+        var scheduler;
+        if(~linkClock.isNil) {
+            "[Record] Impossible de démarrer : LinkClock non initialisé".warn;
+            ^thisThread
+        };
+
+        ~recordStartPending = true;
+        ~recordStopPending = false;
+        ~recordState = \arming;
+        updateRecordButtonState.(~recordState);
+
+        scheduler = ~scheduleOnNextLinkBar;
+        if(scheduler.isNil) {
+            "[Record] Impossible de planifier : fonction de planification absente".warn;
+            ~recordStartPending = false;
+            ~recordState = \idle;
+            updateRecordButtonState.(~recordState);
+            ^thisThread;
+        };
+
+        scheduler.value({
+            if(~recordStartPending.not) { ^nil };
+
+            s.prepareForRecord;
+            s.record;
+
+            {
+                ~recordStartPending = false;
+                ~recordState = \recording;
+                updateRecordButtonState.(~recordState);
+            }.defer;
+        });
+    };
+
+    cancelArming = {
+        if(~recordState != \arming) { ^thisThread };
+
+        ~recordStartPending = false;
+        ~recordState = \idle;
+        updateRecordButtonState.(~recordState);
+    };
+
+    scheduleStop = {
+        var scheduler;
+        if(~linkClock.isNil) {
+            "[Record] Impossible d'arrêter : LinkClock non initialisé".warn;
+            ^thisThread
+        };
+
+        ~recordStopPending = true;
+        ~recordState = \stopping;
+        updateRecordButtonState.(~recordState);
+
+        scheduler = ~scheduleOnNextLinkBar;
+        if(scheduler.isNil) {
+            "[Record] Impossible de planifier l'arrêt : fonction absente".warn;
+            ~recordStopPending = false;
+            ~recordState = \recording;
+            updateRecordButtonState.(~recordState);
+            ^thisThread;
+        };
+
+        scheduler.value({
+            if(~recordStopPending.not) { ^nil };
+
+            s.stopRecording;
+
+            {
+                ~recordStopPending = false;
+                ~recordState = \idle;
+                updateRecordButtonState.(~recordState);
+            }.defer;
+        });
+    };
+
+    cancelStop = {
+        if(~recordState != \stopping) { ^thisThread };
+
+        ~recordStopPending = false;
+        ~recordState = \recording;
+        updateRecordButtonState.(~recordState);
+    };
+
+    recordButton.action = {
+        switch(~recordState,
+            \idle, {
+                armRecording.value;
+            },
+            \arming, {
+                cancelArming.value;
+            },
+            \recording, {
+                scheduleStop.value;
+            },
+            \stopping, {
+                cancelStop.value;
+            }
+        );
+    };
+
+    ~recordButton = recordButton;
+    updateRecordButtonState.(~recordState);
+
+    topBar.layout_(HLayout(10,
+        [recordButton, 0]
+    ).margins_(10));
+
+    channelArea = CompositeView(window)
+        .background_(windowColor);
+
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton, eqArea, eqControls;
 
-        channelContainer = CompositeView(window)
+        channelContainer = CompositeView(channelArea)
             .minWidth_(220)
             .background_(panelColor);
 
@@ -143,11 +303,20 @@
         (container: channelContainer);
     };
 
-    window.layout_(HLayout(10, *(channelViews.collect { |control|
+    channelArea.layout_(HLayout(10, *(channelViews.collect { |control|
         [control[\container], 1]
     })).margins_(10));
 
+    window.layout_(VLayout(10,
+        [topBar, 0],
+        [channelArea, 1]
+    ).margins_(10));
+
     window.onClose = {
+        ~recordButton = nil;
+        ~recordState = \idle;
+        ~recordStartPending = false;
+        ~recordStopPending = false;
         ~mixWindow = nil;
         {
             ~cleanupAudio.tryPerform(\value);

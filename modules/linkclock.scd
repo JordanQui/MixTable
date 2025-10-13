@@ -11,6 +11,7 @@
         ~linkClockMonitorTask = nil;
     };
 
+    ~linkQuantum = quantum;
     ~linkClock = LinkClock.new(tempo: 120/60, quantum: quantum);
 
     "[LinkClock] Initialised with quantum % beats".format(quantum).postln;
@@ -40,4 +41,22 @@
     }, AppClock);
 
     ~linkClockMonitorTask.play;
+};
+
+~linkClockNextBarBeat = {
+    var quantum = (~linkClock.tryPerform(\quantum) ?? { ~linkQuantum ?? { 4 } });
+    var beats = ~linkClock.tryPerform(\elapsedBeats) ?? { 0 };
+    (((beats / quantum).floor) + 1) * quantum;
+};
+
+~scheduleOnNextLinkBar = { |func|
+    if(~linkClock.isNil) {
+        "[LinkClock] Cannot schedule: Link clock is not initialised".warn;
+        ^nil;
+    };
+
+    ~linkClock.schedAbs(~linkClockNextBarBeat.value, {
+        func.value;
+        nil;
+    });
 };
