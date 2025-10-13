@@ -2,11 +2,8 @@
 // Ableton Link Clock
 // ======================
 
-~linkClockOffsetBeats = ~linkClockOffsetBeats ?? { 0 };
-~linkClickAmp = ~linkClickAmp ?? { 0.25 };
-~linkClickAccentAmp = ~linkClickAccentAmp ?? { 0.4 };
+~linkClockOffsetBeats = ~linkClockOffsetBeats ?? { 0.306 * (120 / 60) }; // 306ms lead converted to beats at 120 BPM
 ~linkClickEvent = ~linkClickEvent ?? { nil };
-~linkClickSynthReady = ~linkClickSynthReady ?? { false };
 
 ~stopLinkClick = {
     if(~linkClickEvent.notNil) {
@@ -19,62 +16,27 @@
 };
 
 ~startLinkClick = {
-    var quantum, offset, startBeat;
+    var offset;
 
     if(~linkClock.isNil) {
         "[LinkClock] Cannot start click: Link clock is not initialised".warn;
         ^nil;
     };
 
-    if(~linkClickSynthReady.not) {
-        "[LinkClock] Cannot start click: click SynthDef is not loaded".warn;
-        ^nil;
-    };
-
     ~stopLinkClick.value;
 
-    quantum = (~linkClock.tryPerform(\quantum) ?? { ~linkQuantum ?? { 4 } });
-    offset = 0;
-    startBeat = (~linkClock.elapsedBeats.ceil) + offset;
+    offset = ~linkClockOffsetBeats ?? { 0 };
 
-    ~linkClickEvent = ~linkClock.schedAbs(startBeat, { |scheduledBeat|
-        var beatPosition = (scheduledBeat - offset).round(0.0001);
-        var accent = ((beatPosition % quantum).round(0.0001) == 0);
+    ~linkClickEvent = nil;
 
-        Synth(\linkClick, [
-            \accent, accent.if({ 1 }, { 0 }),
-            \level, ~linkClickAmp ?? { 0.25 },
-            \accentLevel, ~linkClickAccentAmp ?? { 0.4 }
-        ]);
-
-        scheduledBeat + 1;
-    });
-
-    "[LinkClock] Click started (offset: % beats)".format(offset.round(0.001)).postln;
+    "[LinkClock] Tempo click disabled (offset applied: % beats)".format(
+        offset.round(0.001)
+    ).postln;
 };
 
 ~setLinkClockOffset = { |beats = 0|
     ~linkClockOffsetBeats = beats;
     "[LinkClock] Offset set to % beats".format(beats.round(0.001)).postln;
-
-    if(~linkClickEvent.notNil) {
-        ~startLinkClick.value;
-    };
-};
-
-~setLinkClickLevels = { |level, accentLevel|
-    if(level.notNil) {
-        ~linkClickAmp = level.max(0);
-    };
-
-    if(accentLevel.notNil) {
-        ~linkClickAccentAmp = accentLevel.max(0);
-    };
-
-    "[LinkClock] Click levels updated (level: %, accent: %)".format(
-        (~linkClickAmp ?? { 0.25 }).round(0.001),
-        (~linkClickAccentAmp ?? { 0.4 }).round(0.001)
-    ).postln;
 
     if(~linkClickEvent.notNil) {
         ~startLinkClick.value;
@@ -96,25 +58,15 @@
     ~linkClock = LinkClock.new(tempo: 120/60);
     ~linkClock.quantum_(quantum);
 
-    ~linkClickSynthReady = false;
-    SynthDef(\linkClick, { |out = 0, level = 0.25, accentLevel = 0.4, accent = 0|
-        var env = Env.perc(0.001, 0.06, curve: -4).ar(doneAction: 2);
-        var freq = Select.kr(accent, [2200, 3200]);
-        var click = (SinOsc.ar(freq) + (WhiteNoise.ar * 0.15)) * env;
-        var amp = Select.kr(accent, [level, accentLevel]);
-        Out.ar(out, (click * amp) ! 2);
-    }).add;
-    s.sync;
-    ~linkClickSynthReady = true;
-
     "[LinkClock] Initialised with quantum % beats".format(quantum).postln;
 
     ~linkClockMonitorTask = Task({
         var lastBeatNumber = -1;
-        var beats, beatNumber, bar, beatInBar, progress;
+        var beats, beatNumber, bar, beatInBar, progress, offset;
 
         loop {
-            beats = ~linkClock.elapsedBeats;
+            offset = ~linkClockOffsetBeats ?? { 0 };
+            beats = (~linkClock.elapsedBeats ?? 0) - offset;
             beatNumber = beats.floor;
             bar = (beatNumber / quantum).floor + 1;
             beatInBar = (beatNumber % quantum) + 1;
@@ -145,13 +97,14 @@
 
 ~linkClockNextBarBeat = {
     var quantum = (~linkClock.tryPerform(\quantum) ?? { ~linkQuantum ?? { 4 } });
-    var beats = ~linkClock.tryPerform(\elapsedBeats) ?? { 0 };
-    (((beats / quantum).floor) + 1) * quantum;
+    var offset = ~linkClockOffsetBeats ?? { 0 };
+    var beats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 }) - offset;
+    (((beats / quantum).floor) + 1) * quantum + offset;
 };
 
 ~scheduleOnNextLinkBar = { |func, offsetBeats = 0|
     var quantum, currentBeats, currentBeatNumber, currentBar, currentBeatInBar;
-    var targetBeat, targetBar, targetBeatInBar;
+    var targetBeat, targetBar, targetBeatInBar, offset, scheduleOffset;
 
     if(~linkClock.isNil) {
         "[LinkClock] Cannot schedule: Link clock is not initialised".warn;
@@ -159,25 +112,28 @@
     };
 
     quantum = (~linkClock.tryPerform(\quantum) ?? { ~linkQuantum ?? { 4 } });
-    currentBeats = ~linkClock.elapsedBeats;
+    offset = ~linkClockOffsetBeats ?? { 0 };
+    currentBeats = (~linkClock.elapsedBeats ?? 0) - offset;
     currentBeatNumber = currentBeats.floor;
     currentBar = (currentBeatNumber / quantum).floor + 1;
     currentBeatInBar = (currentBeatNumber % quantum) + 1;
 
     targetBeat = ~linkClockNextBarBeat.value + offsetBeats;
-    targetBar = (targetBeat / quantum).floor + 1;
-    targetBeatInBar = (targetBeat % quantum) + 1;
+    targetBar = ((targetBeat - offset) / quantum).floor + 1;
+    targetBeatInBar = ((targetBeat - offset) % quantum) + 1;
 
     "[LinkClock] Scheduling function for bar % beat % (target beat: %, current beat: %, delta: % beats)".format(
         targetBar,
         targetBeatInBar.round(0.001),
-        targetBeat.round(0.001),
+        (targetBeat - offset).round(0.001),
         currentBeats.round(0.001),
-        (targetBeat - currentBeats).round(0.001)
+        ((targetBeat - offset) - currentBeats).round(0.001)
     ).postln;
 
+    scheduleOffset = offset;
+
     ~linkClock.schedAbs(targetBeat, {
-        var actualBeats = ~linkClock.elapsedBeats;
+        var actualBeats = (~linkClock.elapsedBeats ?? 0) - scheduleOffset;
         var actualBeatNumber = actualBeats.floor;
         var actualBar = (actualBeatNumber / quantum).floor + 1;
         var actualBeatInBar = (actualBeatNumber % quantum) + 1;
@@ -185,9 +141,9 @@
         "[LinkClock] Triggered scheduled function at bar % beat % (expected beat: %, actual beat: %, delta: % beats)".format(
             actualBar,
             actualBeatInBar,
-            targetBeat.round(0.001),
+            (targetBeat - scheduleOffset).round(0.001),
             actualBeats.round(0.001),
-            (actualBeats - targetBeat).round(0.001)
+            (actualBeats - (targetBeat - scheduleOffset)).round(0.001)
         ).postln;
 
         func.value;
