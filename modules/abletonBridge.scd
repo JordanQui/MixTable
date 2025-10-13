@@ -385,12 +385,34 @@
     var quantum;
     if(~linkClock.isNil) {
         var linkClass = \LinkClock.asClass;
+        var linkSupport = \Link.asClass;
+        var createdClock = nil;
+
+        if(linkSupport.notNil) {
+            if(linkSupport.tryPerform(\isEnabled).not) {
+                linkSupport.tryPerform(\enable);
+                ~mixTableLog.value("LinkClock", "Link support enabled.");
+            };
+        };
+
         if(linkClass.notNil) {
-            ~linkClock = linkClass.new;
-            ~mixTableLog.value("LinkClock", "LinkClock instance created.");
+            {
+                createdClock = linkClass.new;
+            }.try({ |error|
+                ~mixTableLog.value("LinkClock", "LinkClock creation failed (%). Using TempoClock fallback.".format(error));
+                createdClock = nil;
+            });
+
+            if(createdClock.notNil) {
+                ~linkClock = createdClock;
+                ~mixTableLog.value("LinkClock", "LinkClock instance created.");
+            } {
+                ~linkClock = TempoClock.new;
+                ~mixTableLog.value("LinkClock", "TempoClock fallback created (LinkClock unavailable).");
+            };
         } {
             ~linkClock = TempoClock.new;
-            ~mixTableLog.value("LinkClock", "TempoClock fallback created (LinkClock unavailable).");
+            ~mixTableLog.value("LinkClock", "TempoClock fallback created (LinkClock class missing).");
         };
     };
 
