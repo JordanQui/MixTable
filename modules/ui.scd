@@ -7,6 +7,7 @@
     var mutedColor = Color(0.8, 0.25, 0.25);
     var recordBaseStates, recordStoppingStates;
     var updateRecordButtonState, armRecording, cancelArming, scheduleStop, cancelStop;
+    var formatLinkPosition;
     var eqSpecs = [
         (band: \high, name: "High", freqRange: [5000, 16000], gainRange: [-60, 20], qRange: [0.2, 5]),
         (band: \mid2, name: "Mid 2", freqRange: [1200, 5000], gainRange: [-60, 20], qRange: [0.2, 10]),
@@ -29,6 +30,18 @@
     ~recordState = ~recordState ?? { \idle };
     ~recordStartPending = false;
     ~recordStopPending = false;
+
+    formatLinkPosition = { |beats|
+        var quantum = (~linkClock.tryPerform(\quantum) ?? { ~linkQuantum ?? { 4 } });
+        var beatNumber = beats.floor;
+        var bar = (beatNumber / quantum).floor + 1;
+        var beatInBar = (beatNumber % quantum) + 1;
+        "bar %, beat %, beats %.".format(
+            bar,
+            beatInBar,
+            beats.round(0.001)
+        );
+    };
 
     recordBaseStates = [
         ["Record", Color.white, Color(0.8, 0.2, 0.2)],
@@ -74,7 +87,15 @@
     };
 
     armRecording = {
-        var scheduler;
+        var scheduler, beats;
+
+        beats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
+
+        "[Record] Arm requested (state: %, position: %)".format(
+            ~recordState,
+            formatLinkPosition.(beats)
+        ).postln;
+
         if(~linkClock.isNil) {
             "[Record] Impossible de démarrer : LinkClock non initialisé".warn;
             ^thisThread
@@ -95,19 +116,37 @@
         };
 
         scheduler.value({
+            var triggerBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
+
+            "[Record] Scheduled start triggered (position: %, pending start: %)".format(
+                formatLinkPosition.(triggerBeats),
+                ~recordStartPending
+            ).postln;
+
             var recordBus = (~recordBusIndex ?? { 0 });
             var recordChannels = (~recordNumChannels ?? { s.options.numOutputBusChannels ?? { 2 } });
 
             if(~recordStartPending.not) { ^nil };
 
             Routine({
+                var routineBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { triggerBeats });
+
+                "[Record] Starting server recording routine (position: %)".format(
+                    formatLinkPosition.(routineBeats)
+                ).postln;
+
                 s.prepareForRecord(numChannels: recordChannels, bus: recordBus);
                 s.sync;
                 s.record(numChannels: recordChannels, bus: recordBus);
 
+                "[Record] Server recording command sent (position: %)".format(
+                    formatLinkPosition.(~linkClock.tryPerform(\elapsedBeats) ?? { routineBeats })
+                ).postln;
+
                 {
                     ~recordStartPending = false;
                     ~recordState = \recording;
+                    "[Record] State set to recording".postln;
                     updateRecordButtonState.(~recordState);
                 }.defer;
             }).play(SystemClock);
@@ -117,13 +156,23 @@
     cancelArming = {
         if(~recordState != \arming) { ^thisThread };
 
+        "[Record] Arming cancelled".postln;
+
         ~recordStartPending = false;
         ~recordState = \idle;
         updateRecordButtonState.(~recordState);
     };
 
     scheduleStop = {
-        var scheduler;
+        var scheduler, beats;
+
+        beats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
+
+        "[Record] Stop requested (state: %, position: %)".format(
+            ~recordState,
+            formatLinkPosition.(beats)
+        ).postln;
+
         if(~linkClock.isNil) {
             "[Record] Impossible d'arrêter : LinkClock non initialisé".warn;
             ^thisThread
@@ -143,13 +192,30 @@
         };
 
         scheduler.value({
+            var triggerBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
+
+            "[Record] Scheduled stop triggered (position: %, pending stop: %)".format(
+                formatLinkPosition.(triggerBeats),
+                ~recordStopPending
+            ).postln;
+
             if(~recordStopPending.not) { ^nil };
 
-            if(s.isRecording) { s.stopRecording };
+            if(s.isRecording) {
+                var stopBeats;
+                stopBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { triggerBeats });
+
+                "[Record] Server stop recording command sent (position: %)".format(
+                    formatLinkPosition.(stopBeats)
+                ).postln;
+
+                s.stopRecording;
+            };
 
             {
                 ~recordStopPending = false;
                 ~recordState = \idle;
+                "[Record] State set to idle after stop".postln;
                 updateRecordButtonState.(~recordState);
             }.defer;
         });
@@ -158,12 +224,20 @@
     cancelStop = {
         if(~recordState != \stopping) { ^thisThread };
 
+        "[Record] Stop cancelled".postln;
+
         ~recordStopPending = false;
         ~recordState = \recording;
         updateRecordButtonState.(~recordState);
     };
 
     recordButton.action = {
+        "[RecordButton] Click detected (state: %, startPending: %, stopPending: %)".format(
+            ~recordState,
+            ~recordStartPending,
+            ~recordStopPending
+        ).postln;
+
         switch(~recordState,
             \idle, {
                 armRecording.value;
