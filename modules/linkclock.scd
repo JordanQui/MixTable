@@ -49,7 +49,7 @@
     (((beats / quantum).floor) + 1) * quantum;
 };
 
-~scheduleOnNextLinkBar = { |func|
+~scheduleOnNextLinkBar = { |func, offsetBeats = 0|
     var quantum, currentBeats, currentBeatNumber, currentBar, currentBeatInBar;
     var targetBeat, targetBar, targetBeatInBar;
 
@@ -64,13 +64,13 @@
     currentBar = (currentBeatNumber / quantum).floor + 1;
     currentBeatInBar = (currentBeatNumber % quantum) + 1;
 
-    targetBeat = ~linkClockNextBarBeat.value;
+    targetBeat = ~linkClockNextBarBeat.value + offsetBeats;
     targetBar = (targetBeat / quantum).floor + 1;
     targetBeatInBar = (targetBeat % quantum) + 1;
 
     "[LinkClock] Scheduling function for bar % beat % (target beat: %, current beat: %, delta: % beats)".format(
         targetBar,
-        targetBeatInBar,
+        targetBeatInBar.round(0.001),
         targetBeat.round(0.001),
         currentBeats.round(0.001),
         (targetBeat - currentBeats).round(0.001)

@@ -30,6 +30,8 @@
     ~recordState = ~recordState ?? { \idle };
     ~recordStartPending = false;
     ~recordStopPending = false;
+    // Correction empirique pour compenser la latence observée (~5 doubles-croches).
+    ~recordTimingOffsetBeats = ~recordTimingOffsetBeats ?? { 5/4 };
 
     formatLinkPosition = { |beats|
         var quantum = (~linkClock.tryPerform(\quantum) ?? { ~linkQuantum ?? { 4 } });
@@ -87,7 +89,7 @@
     };
 
     armRecording = {
-        var scheduler, beats;
+        var scheduler, beats, offsetBeats;
 
         beats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
 
@@ -107,6 +109,7 @@
         updateRecordButtonState.(~recordState);
 
         scheduler = ~scheduleOnNextLinkBar;
+        offsetBeats = (~recordTimingOffsetBeats ?? { 0 });
         if(scheduler.isNil) {
             "[Record] Impossible de planifier : fonction de planification absente".warn;
             ~recordStartPending = false;
@@ -120,9 +123,10 @@
 
             triggerBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
 
-            "[Record] Scheduled start triggered (position: %, pending start: %)".format(
+            "[Record] Scheduled start triggered (position: %, pending start: %, offset: % beats)".format(
                 formatLinkPosition.(triggerBeats),
-                ~recordStartPending
+                ~recordStartPending,
+                offsetBeats.round(0.001)
             ).postln;
 
             recordBus = (~recordBusIndex ?? { 0 });
@@ -152,7 +156,7 @@
                     updateRecordButtonState.(~recordState);
                 }.defer;
             }).play(SystemClock);
-        });
+        }, offsetBeats);
     };
 
     cancelArming = {
@@ -166,7 +170,7 @@
     };
 
     scheduleStop = {
-        var scheduler, beats;
+        var scheduler, beats, offsetBeats;
 
         beats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
 
@@ -185,6 +189,7 @@
         updateRecordButtonState.(~recordState);
 
         scheduler = ~scheduleOnNextLinkBar;
+        offsetBeats = (~recordTimingOffsetBeats ?? { 0 });
         if(scheduler.isNil) {
             "[Record] Impossible de planifier l'arrêt : fonction absente".warn;
             ~recordStopPending = false;
@@ -196,9 +201,10 @@
         scheduler.value({
             var triggerBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
 
-            "[Record] Scheduled stop triggered (position: %, pending stop: %)".format(
+            "[Record] Scheduled stop triggered (position: %, pending stop: %, offset: % beats)".format(
                 formatLinkPosition.(triggerBeats),
-                ~recordStopPending
+                ~recordStopPending,
+                offsetBeats.round(0.001)
             ).postln;
 
             if(~recordStopPending.not) { ^nil };
@@ -220,7 +226,7 @@
                 "[Record] State set to idle after stop".postln;
                 updateRecordButtonState.(~recordState);
             }.defer;
-        });
+        }, offsetBeats);
     };
 
     cancelStop = {
