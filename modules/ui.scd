@@ -116,15 +116,17 @@
         };
 
         scheduler.value({
-            var triggerBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
+            var triggerBeats, recordBus, recordChannels;
+
+            triggerBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
 
             "[Record] Scheduled start triggered (position: %, pending start: %)".format(
                 formatLinkPosition.(triggerBeats),
                 ~recordStartPending
             ).postln;
 
-            var recordBus = (~recordBusIndex ?? { 0 });
-            var recordChannels = (~recordNumChannels ?? { s.options.numOutputBusChannels ?? { 2 } });
+            recordBus = (~recordBusIndex ?? { 0 });
+            recordChannels = (~recordNumChannels ?? { s.options.numOutputBusChannels ?? { 2 } });
 
             if(~recordStartPending.not) { ^nil };
 
