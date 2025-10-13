@@ -235,12 +235,13 @@
         updateMeasureIndicators.(quantum);
 
         measure = (state[\measure] ?? { 1 }).asInteger.clip(1, quantum);
-        var buttonState = case
-        { status == \idle } { 0 }
-        { status == \waiting } { 1 }
-        { status == \stopping } { 1 }
-        { status == \recording } { 2 }
-        { 0 };
+        var buttonState = switch(status,
+            \idle, { 0 },
+            \waiting, { 1 },
+            \stopping, { 1 },
+            \recording, { 2 },
+            { 0 }
+        );
 
         recordButton.value_(buttonState);
         measureIndicators.do { |indicator, idx|
