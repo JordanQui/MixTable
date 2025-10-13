@@ -43,7 +43,7 @@
     ~abletonBridgeSockets[key];
 };
 
-~abletonBridgeSend = { |path, ...args|
+~abletonBridgeSend = { |path, ... args|
     var socket = ~ensureAbletonBridgeSocket.value;
     if(socket.notNil) {
         socket.sendMsg(path, *args);
@@ -67,16 +67,27 @@
 
 ~handleBridgeMeasure = { |rawMeasure, isAbsolute = true, quantumOverride = nil|
     var quantum = quantumOverride ?? { ~linkClock.tryPerform(\quantum) } ?? { ~abletonBridgeConfig[\quantum] ?? { 4 } };
+    var normalizedMeasure, absoluteMeasure;
     if(quantum.isNumber.not) { quantum = 4; };
     quantum = quantum.asInteger.max(1);
     ~abletonBridgeConfig[\quantum] = quantum;
-    var measure;
+
+    rawMeasure = rawMeasure.asInteger.max(1);
     if(isAbsolute) {
-        measure = ((rawMeasure.asInteger - 1) % quantum) + 1;
+        absoluteMeasure = rawMeasure;
+        normalizedMeasure = (((rawMeasure - 1) % quantum) + 1).clip(1, quantum);
     } {
-        measure = rawMeasure.asInteger.clip(1, quantum);
+        var previousRaw = ~recordTransportState.tryPerform(\at, \rawMeasure) ?? { 1 };
+        var previousMeasure = (((previousRaw - 1) % quantum) + 1).clip(1, quantum);
+        normalizedMeasure = rawMeasure.clip(1, quantum);
+        if(normalizedMeasure > previousMeasure) {
+            absoluteMeasure = previousRaw + (normalizedMeasure - previousMeasure);
+        } {
+            absoluteMeasure = previousRaw + ((quantum - previousMeasure) + normalizedMeasure);
+        };
     };
-    ~setRecordMeasure.value(measure);
+
+    ~setRecordMeasure.value(normalizedMeasure, quantum, absoluteMeasure);
 };
 
 ~handleBridgeRecordState = { |state|
@@ -159,10 +170,14 @@
 
 ~ensureRecordTransport = {
     if(~recordTransportState.isNil) {
+        var quantum = (~abletonBridgeConfig[\quantum] ?? { 4 });
+        if(quantum.isNumber.not) { quantum = 4; };
+        quantum = quantum.asInteger.max(1);
         ~recordTransportState = (
             state: \idle,
             measure: 1,
             rawMeasure: 1,
+            quantum: quantum,
             pendingStop: false,
             observers: List.new
         );
@@ -174,7 +189,8 @@
     ~ensureRecordTransport.value;
     snapshot = (
         state: ~recordTransportState[\state],
-        measure: ~recordTransportState[\measure]
+        measure: ~recordTransportState[\measure],
+        quantum: ~recordTransportState[\quantum]
     );
     ~recordTransportState[\observers].do { |observer|
         {
@@ -191,7 +207,8 @@
         ~recordTransportState[\observers].add(observer);
         observer.((
             state: ~recordTransportState[\state],
-            measure: ~recordTransportState[\measure]
+            measure: ~recordTransportState[\measure],
+            quantum: ~recordTransportState[\quantum]
         ));
     };
 };
@@ -210,27 +227,87 @@
         ~recordTransportState[\pendingStop] = false;
     };
     ~notifyRecordTransport.value;
+    if(newState == \idle) {
+        ~stopServerRecording.tryPerform(\value);
+    };
 };
 
-~setRecordMeasure = { |measure|
-    var rawMeasure, previousRaw, clipped, wrapped;
+~setRecordMeasure = { |measure, quantum = nil, rawMeasure = nil|
+    var previousRaw, previousMeasure, normalizedMeasure, nextRaw, wrapped;
     ~ensureRecordTransport.value;
-    rawMeasure = measure.asInteger.max(1);
-    previousRaw = ~recordTransportState[\rawMeasure] ?? { rawMeasure };
-    clipped = (((rawMeasure - 1) % 4) + 1).clip(1, 4);
-    wrapped = rawMeasure < previousRaw;
-    if(previousRaw != rawMeasure) {
-        ~recordTransportState[\rawMeasure] = rawMeasure;
+
+    quantum = (quantum ?? { ~recordTransportState[\quantum] } ?? { 4 });
+    if(quantum.isNumber.not) { quantum = 4; };
+    quantum = quantum.asInteger.max(1);
+    ~recordTransportState[\quantum] = quantum;
+
+    previousRaw = ~recordTransportState[\rawMeasure] ?? { 1 };
+    previousMeasure = ~recordTransportState[\measure] ?? { 1 };
+
+    normalizedMeasure = measure.asInteger.clip(1, quantum);
+
+    if(rawMeasure.notNil) {
+        nextRaw = rawMeasure.asInteger.max(1);
+        wrapped = nextRaw <= previousRaw;
+    } {
+        if(previousRaw.isNil) {
+            nextRaw = normalizedMeasure;
+            wrapped = false;
+        } {
+            if(normalizedMeasure > previousMeasure) {
+                nextRaw = previousRaw + (normalizedMeasure - previousMeasure);
+                wrapped = false;
+            } {
+                nextRaw = previousRaw + ((quantum - previousMeasure) + normalizedMeasure);
+                wrapped = normalizedMeasure <= previousMeasure;
+            };
+        };
     };
-    if(~recordTransportState[\measure] != clipped) {
-        ~recordTransportState[\measure] = clipped;
+
+    if(previousRaw != nextRaw) {
+        ~recordTransportState[\rawMeasure] = nextRaw;
+    };
+
+    if(~recordTransportState[\measure] != normalizedMeasure) {
+        ~recordTransportState[\measure] = normalizedMeasure;
         ~notifyRecordTransport.value;
+    } {
+        wrapped = false;
     };
+
     if((~recordTransportState[\state] == \waiting) and: { wrapped }) {
         ~confirmRecordStart.value;
     };
     if((~recordTransportState[\state] == \stopping) and: { ~recordTransportState[\pendingStop] } and: { wrapped }) {
         ~finalizePendingStop.value;
+    };
+};
+
+~ensureRecordingDirectory = {
+    var dir = Platform.recordingsDir ?? { Platform.userAppSupportDir +/+ "Recordings" };
+    dir = dir.asString;
+    PathName(dir).mkdir;
+    dir;
+};
+
+~startServerRecording = {
+    var path, dir, timestamp;
+    if(s.serverRunning.not) { ^nil };
+    if(s.recording) { ^nil };
+    dir = ~ensureRecordingDirectory.value;
+    timestamp = Date.getDate.stamp;
+    if(timestamp.respondsTo(\replace)) {
+        timestamp = timestamp.replace($:, $-);
+    };
+    path = dir +/+ ("MixTable_" ++ timestamp ++ ".wav");
+    s.prepareForRecord(path);
+    s.record(path);
+    ~currentRecordingPath = path;
+};
+
+~stopServerRecording = {
+    if(s.recording) {
+        s.stopRecording;
     };
 };
 
@@ -279,12 +356,15 @@
                 beat = (~linkClock.tryPerform(\beats) ?? { 0 }).asFloat;
                 measure = (((beat.floor) % quantum) + 1).clip(1, quantum);
                 if(lastMeasure != measure) {
-                    ~setRecordMeasure.value(measure);
+                    ~setRecordMeasure.value(measure, quantum);
                     lastMeasure = measure;
                 };
             } {
                 if(lastMeasure.notNil) {
-                    ~setRecordMeasure.value(1);
+                    var currentQuantum = (~recordTransportState.tryPerform(\at, \quantum) ?? { quantum ?? { 4 } });
+                    if(currentQuantum.isNumber.not) { currentQuantum = 4; };
+                    currentQuantum = currentQuantum.asInteger.max(1);
+                    ~setRecordMeasure.value(1, currentQuantum);
                     lastMeasure = nil;
                 };
             };
@@ -324,6 +404,7 @@
         ~recordTransportState[\state] = \recording;
         ~recordTransportState[\pendingStop] = false;
         ~notifyRecordTransport.value;
+        ~startServerRecording.tryPerform(\value);
     };
 };
 
@@ -341,6 +422,7 @@
     ~recordTransportState[\pendingStop] = false;
     ~recordTransportState[\state] = \idle;
     ~notifyRecordTransport.value;
+    ~stopServerRecording.tryPerform(\value);
     ~abletonBridgeSend.value("/mixTable/transport/stopRecord", 1);
 };
 
@@ -358,11 +440,12 @@
         \waiting, {
             ~cancelPendingRecord.value;
         },
-        {
+        { 
             if(~recordTransportState[\state] != \idle) {
                 ~recordTransportState[\state] = \idle;
                 ~recordTransportState[\pendingStop] = false;
                 ~notifyRecordTransport.value;
+                ~stopServerRecording.tryPerform(\value);
                 ~abletonBridgeSend.value("/mixTable/transport/stopRecord", 1);
             };
         }
