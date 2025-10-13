@@ -89,7 +89,8 @@ SynthDef(\mixChannel, {
     ~inputGroup = Group.head(s);
     ~outputGroup = Group.after(~inputGroup);
 
-    ~recordBusIndex = ~mixBus.index;
+    // Enregistrer directement la sortie principale (après limiteur)
+    ~recordBusIndex = 0;
     ~recordNumChannels = ~mixBus.numChannels;
 
     ~channelStates = Array.fill(~mixInputs.size, {
