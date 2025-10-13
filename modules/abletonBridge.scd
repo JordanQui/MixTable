@@ -314,7 +314,7 @@
 ~ensureLinkClock = {
     var quantum;
     if(~linkClock.isNil) {
-        var linkClass = Class.find(\LinkClock);
+        var linkClass = \LinkClock.asClass;
         if(linkClass.notNil) {
             ~linkClock = linkClass.new;
         } {
