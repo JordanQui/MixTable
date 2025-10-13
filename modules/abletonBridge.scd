@@ -43,7 +43,7 @@
     ~abletonBridgeSockets[key];
 };
 
-~abletonBridgeSend = { |path, ... args|
+~abletonBridgeSend = { |path ... args|
     var socket = ~ensureAbletonBridgeSocket.value;
     if(socket.notNil) {
         socket.sendMsg(path, *args);
