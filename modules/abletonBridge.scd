@@ -1,6 +1,6 @@
 // Gestion de l'interface avec Ableton Bridge pour la fonction Record
-~mixTableLog = ~mixTableLog ?? { |tag, message|
-    var prefix, runtime, date, timestamp;
+~mixTableLog = ~mixTableLog ?? { |tagOrMessage, message = nil ... extra|
+    var prefix, runtime, date, timestamp, tag, content;
 
     prefix = "[MixTable]";
     runtime = if(Main.respondsTo(\elapsedTime)) { Main.elapsedTime } { 0 };
@@ -22,10 +22,28 @@
     if(timestamp.respondsTo(\asString)) {
         timestamp = timestamp.asString;
     };
+
+    if((message.isNil) and: { extra.isEmpty }) {
+        tag = nil;
+        content = tagOrMessage;
+    } {
+        tag = tagOrMessage;
+        content = [message] ++ extra;
+        content = content.select(_.notNil);
+        if(content.isEmpty) {
+            content = nil;
+        } {
+            content = content.collect(_.asString).join(" ");
+        };
+    };
+
     if(tag.notNil) {
         prefix = prefix ++ " [" ++ tag.asString ++ "]";
     };
-    (prefix ++ " [" ++ timestamp ++ " @ " ++ runtime.round(0.001).asString ++ "s] " ++ message.asString).postln;
+
+    content = (content ?? { "" }).asString;
+
+    (prefix ++ " [" ++ timestamp ++ " @ " ++ runtime.round(0.001).asString ++ "s] " ++ content).postln;
 };
 
 ~abletonBridgeConfig = ~abletonBridgeConfig ?? {
