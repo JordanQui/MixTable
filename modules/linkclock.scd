@@ -2,7 +2,7 @@
 // Ableton Link Clock
 // ======================
 
-~linkClockLatencyOffset = ~linkClockLatencyOffset ?? { 0.306 };
+~linkClockLatencyOffset = ~linkClockLatencyOffset ?? { -0.302 };
 
 ~setupLinkClock = {
     var quantum = 4;
