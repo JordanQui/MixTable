@@ -1,7 +1,7 @@
 ~createUI = {
     var window, channelViews, headerBar, channelArea, headerSpacer;
     var recordButton, measureContainer, measureIndicators, recordObserver, updateMeasureIndicators;
-    var lastRecordStatus, lastRecordMeasure, lastRecordQuantum;
+    var lastRecordStatus, lastRecordMeasure, lastRecordQuantum, lastButtonState;
     var windowColor = Color(0.08, 0.08, 0.1);
     var panelColor = Color(0.12, 0.12, 0.16);
     var sectionColor = Color(0.18, 0.18, 0.22);
@@ -247,6 +247,13 @@
         );
 
         recordButton.value_(buttonState);
+        if(lastButtonState != buttonState) {
+            ~mixTableLog.tryPerform(\value, "UI", "Record button visual -> state:% (transport:%)".format(
+                buttonState,
+                status
+            ));
+            lastButtonState = buttonState;
+        };
         if((lastRecordStatus != status) or: { lastRecordMeasure != measure } or: { lastRecordQuantum != quantum }) {
             ~mixTableLog.tryPerform(\value, "UI", "Record UI update - status:% measure:%/%".format(status, measure, quantum));
             lastRecordStatus = status;
