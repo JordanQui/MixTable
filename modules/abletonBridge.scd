@@ -31,10 +31,10 @@
     ~ensureRecordTransport.value;
     if(observer.notNil) {
         ~recordTransportState[\observers].add(observer);
-        observer.(
+        observer.((
             state: ~recordTransportState[\state],
             measure: ~recordTransportState[\measure]
-        );
+        ));
     };
 };
 
