@@ -1,10 +1,15 @@
 ~createUI = {
-    var window, channelViews;
+    var window, channelViews, headerBar, channelArea, headerSpacer;
+    var recordButton, measureContainer, measureIndicators, recordObserver;
     var windowColor = Color(0.08, 0.08, 0.1);
     var panelColor = Color(0.12, 0.12, 0.16);
     var sectionColor = Color(0.18, 0.18, 0.22);
     var accentColor = Color(0.35, 0.65, 0.95);
     var mutedColor = Color(0.8, 0.25, 0.25);
+    var waitingColor = Color(0.95, 0.78, 0.25);
+    var recordingColor = Color(0.85, 0.2, 0.2);
+    var measureInactiveColor = Color(0.25, 0.25, 0.32);
+    var measureActiveColor = accentColor;
     var eqSpecs = [
         (band: \high, name: "High", freqRange: [5000, 16000], gainRange: [-60, 20], qRange: [0.2, 5]),
         (band: \mid2, name: "Mid 2", freqRange: [1200, 5000], gainRange: [-60, 20], qRange: [0.2, 10]),
@@ -24,10 +29,57 @@
     window.view.background_(windowColor);
     ~mixWindow = window;
 
+    headerBar = CompositeView(window)
+        .background_(panelColor)
+        .minHeight_(56)
+        .maxHeight_(56);
+
+    recordButton = Button(headerBar)
+        .states_([
+            ["Record", Color.white, accentColor],
+            ["Record", Color.black, waitingColor],
+            ["Record", Color.white, recordingColor]
+        ])
+        .minWidth_(110)
+        .maxHeight_(32);
+
+    measureContainer = CompositeView(headerBar)
+        .background_(panelColor);
+
+    measureIndicators = (1..4).collect { |number|
+        StaticText(measureContainer)
+            .string_(number.asString)
+            .alignment_(\center)
+            .font_(Font("Helvetica", 13))
+            .stringColor_(Color.white)
+            .background_(measureInactiveColor)
+            .minWidth_(32)
+            .maxHeight_(28);
+    };
+
+    measureIndicators[0].background_(measureActiveColor);
+    measureIndicators[0].stringColor_(Color.black);
+
+    measureContainer.layout_(HLayout(6, *(measureIndicators.collect { |indicator|
+        [indicator, 0]
+    })));
+
+    headerSpacer = CompositeView(headerBar)
+        .background_(panelColor);
+
+    headerBar.layout_(HLayout(12,
+        [recordButton, 0],
+        [measureContainer, 0],
+        [headerSpacer, 1]
+    ).margins_(10));
+
+    channelArea = CompositeView(window)
+        .background_(windowColor);
+
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton, eqArea, eqControls;
 
-        channelContainer = CompositeView(window)
+        channelContainer = CompositeView(channelArea)
             .minWidth_(220)
             .background_(panelColor);
 
@@ -143,12 +195,45 @@
         (container: channelContainer);
     };
 
-    window.layout_(HLayout(10, *(channelViews.collect { |control|
+    channelArea.layout_(HLayout(10, *(channelViews.collect { |control|
         [control[\container], 1]
-    })).margins_(10));
+    })).margins_(0));
+
+    window.layout_(VLayout(10,
+        [headerBar, 0],
+        [channelArea, 1]
+    ).margins_(10));
+
+    recordButton.action = {
+        ~toggleRecordTransport.tryPerform(\value);
+    };
+
+    recordObserver = { |state|
+        var status = state[\state] ?? { \idle };
+        var measure = (state[\measure] ?? { 1 }).clip(1, 4);
+        var buttonState = case
+        { status == \idle } { 0 }
+        { status == \waiting } { 1 }
+        { status == \recording } { 2 }
+        { 0 };
+
+        recordButton.value_(buttonState);
+        measureIndicators.do { |indicator, idx|
+            if(idx == (measure - 1)) {
+                indicator.background_(measureActiveColor);
+                indicator.stringColor_(Color.black);
+            } {
+                indicator.background_(measureInactiveColor);
+                indicator.stringColor_(Color.white);
+            };
+        };
+    };
+
+    ~addRecordObserver.tryPerform(\value, recordObserver);
 
     window.onClose = {
         ~mixWindow = nil;
+        ~removeRecordObserver.tryPerform(\value, recordObserver);
         {
             ~cleanupAudio.tryPerform(\value);
             s.quit;

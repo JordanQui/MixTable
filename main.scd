@@ -13,6 +13,7 @@ s.options.numInputBusChannels = 18;
 // Initialisation
 // ======================
 ~bootMixTable = {
+    ("modules/abletonBridge.scd").loadRelative;
     ("modules/mixer.scd").loadRelative;
     ("modules/ui.scd").loadRelative;
 
