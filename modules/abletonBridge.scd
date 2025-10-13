@@ -1,10 +1,15 @@
 // Gestion de l'interface avec Ableton Bridge pour la fonction Record
 ~mixTableLog = ~mixTableLog ?? { |tag, message|
     var prefix = "[MixTable]";
+    var runtime = Main.elapsedTime ?? { 0 };
+    var timestamp = Date.getDate.stamp ?? { "" };
+    if(timestamp.respondsTo(\asString)) {
+        timestamp = timestamp.asString;
+    };
     if(tag.notNil) {
         prefix = prefix ++ " [" ++ tag.asString ++ "]";
     };
-    (prefix ++ " " ++ message.asString).postln;
+    (prefix ++ " [" ++ timestamp ++ " @ " ++ runtime.round(0.001).asString ++ "s] " ++ message.asString).postln;
 };
 
 ~abletonBridgeConfig = ~abletonBridgeConfig ?? {
@@ -54,7 +59,11 @@
 ~abletonBridgeSend = { |path ... args|
     var socket = ~ensureAbletonBridgeSocket.value;
     if(socket.notNil) {
+        var payload = args.asArray.collect { |item| item.asString }.join(", ");
+        ~mixTableLog.value("AbletonBridge", "Send % [%]".format(path, payload));
         socket.sendMsg(path, *args);
+    } {
+        ~mixTableLog.value("AbletonBridge", "Send failed % - socket unavailable".format(path));
     };
 };
 
@@ -237,12 +246,22 @@
 };
 
 ~setRecordState = { |newState|
+    var previousState, elapsed;
     ~ensureRecordTransport.value;
+    previousState = ~recordTransportState[\state] ?? { \idle };
     ~recordTransportState[\state] = newState;
     if(newState != \stopping) {
         ~recordTransportState[\pendingStop] = false;
     };
     ~notifyRecordTransport.value;
+    if(previousState != newState) {
+        elapsed = Main.elapsedTime ?? { 0 };
+        ~mixTableLog.value("Transport", "Record state changed % -> % (elapsed:%s)".format(
+            previousState,
+            newState,
+            elapsed.round(0.001).asString
+        ));
+    };
     if(newState == \idle) {
         ~stopServerRecording.tryPerform(\value);
     };
@@ -334,8 +353,10 @@
         var linkClass = \LinkClock.asClass;
         if(linkClass.notNil) {
             ~linkClock = linkClass.new;
+            ~mixTableLog.value("LinkClock", "LinkClock instance created.");
         } {
             ~linkClock = TempoClock.new;
+            ~mixTableLog.value("LinkClock", "TempoClock fallback created (LinkClock unavailable).");
         };
     };
 
@@ -343,6 +364,17 @@
     if(quantum.isNumber.not) { quantum = 4; };
     quantum = quantum.asInteger.max(1);
     ~linkClock.tryPerform(\quantum_, quantum);
+
+    if((~linkClock.tryPerform(\isPlaying) ?? { false }).not) {
+        ~mixTableLog.value("LinkClock", "Clock was stopped - starting playback.");
+        ~linkClock.tryPerform(\play);
+    };
+
+    ~mixTableLog.value("LinkClock", "Clock ready - tempo:% bpm quantum:% playing:%".format(
+        (~linkClock.tryPerform(\tempo) ?? { 0 }).round(0.01),
+        quantum,
+        (~linkClock.tryPerform(\isPlaying) ?? { false })
+    ));
 };
 
 ~stopLinkMeasureSync = {
@@ -363,15 +395,23 @@
         ~linkMeasureRoutine.stop;
     };
 
+    ~mixTableLog.value("LinkClock", "Starting measure sync routine.");
+
     ~linkMeasureRoutine = Routine({
         var lastMeasure = nil;
         var lastQuantum = nil;
         var lastPlayingState = nil;
-        var quantum, beat, measure, linkIsPlaying;
+        var quantum, beat, measure, linkIsPlaying, tempo, beatDur, elapsed;
         loop {
             linkIsPlaying = (~linkClock.tryPerform(\isPlaying) ?? { true });
             if(linkIsPlaying != lastPlayingState) {
-                ~mixTableLog.value("LinkClock", "Playing state changed: %".format(linkIsPlaying));
+                tempo = (~linkClock.tryPerform(\tempo) ?? { 0 }).round(0.01);
+                elapsed = Main.elapsedTime ?? { 0 };
+                ~mixTableLog.value("LinkClock", "Playing state changed: % (tempo:% bpm, elapsed:%s)".format(
+                    linkIsPlaying,
+                    tempo,
+                    elapsed.round(0.001).asString
+                ));
                 lastPlayingState = linkIsPlaying;
             };
             if(linkIsPlaying) {
@@ -382,10 +422,16 @@
                     ~setRecordMeasure.value(measure, quantum);
                     lastMeasure = measure;
                     lastQuantum = quantum;
-                    ~mixTableLog.value("LinkClock", "Beat update - beat:% measure:%/%".format(
+                    tempo = (~linkClock.tryPerform(\tempo) ?? { 0 }).round(0.01);
+                    beatDur = (~linkClock.tryPerform(\beatDur) ?? { 0 }).round(0.001);
+                    elapsed = Main.elapsedTime ?? { 0 };
+                    ~mixTableLog.value("LinkClock", "Beat update - beat:% measure:%/% tempo:% bpm beatDur:%s elapsed:%s".format(
                         beat.round(0.001),
                         measure,
-                        quantum
+                        quantum,
+                        tempo,
+                        beatDur.asString,
+                        elapsed.round(0.001).asString
                     ));
                 };
             } {
@@ -396,7 +442,11 @@
                     ~setRecordMeasure.value(1, currentQuantum);
                     lastMeasure = nil;
                     lastQuantum = currentQuantum;
-                    ~mixTableLog.value("LinkClock", "Link stopped - reset measure to 1/%".format(currentQuantum));
+                    elapsed = Main.elapsedTime ?? { 0 };
+                    ~mixTableLog.value("LinkClock", "Link stopped - reset measure to 1/% (elapsed:%s)".format(
+                        currentQuantum,
+                        elapsed.round(0.001).asString
+                    ));
                 };
             };
             0.05.wait;
