@@ -142,7 +142,7 @@
         }).play(SystemClock);
 
         scheduler.value({
-            var triggerBeats;
+            var triggerBeats, recordBeats;
 
             triggerBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
 
@@ -158,26 +158,25 @@
                 "[Record] Warning: recording was not fully prepared in time".postln;
             };
 
-            Routine({
-                var routineBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { triggerBeats });
+            recordBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { triggerBeats });
 
-                "[Record] Starting server recording routine (position: %)".format(
-                    formatLinkPosition.(routineBeats)
-                ).postln;
+            "[Record] Starting server recording (position: %)".format(
+                formatLinkPosition.(recordBeats)
+            ).postln;
 
-                s.record(numChannels: recordChannels, bus: recordBus);
+            s.record(numChannels: recordChannels, bus: recordBus);
 
-                "[Record] Server recording command sent (position: %)".format(
-                    formatLinkPosition.(~linkClock.tryPerform(\elapsedBeats) ?? { routineBeats })
-                ).postln;
+            "[Record] Server recording command sent (position: %)".format(
+                formatLinkPosition.(~linkClock.tryPerform(\elapsedBeats) ?? { recordBeats })
+            ).postln;
 
-                {
-                    ~recordStartPending = false;
-                    ~recordState = \recording;
-                    "[Record] State set to recording".postln;
-                    updateRecordButtonState.(~recordState);
-                }.defer;
-            }).play(SystemClock);
+            {
+                ~recordStartPending = false;
+                ~recordPrepared = false;
+                ~recordState = \recording;
+                "[Record] State set to recording".postln;
+                updateRecordButtonState.(~recordState);
+            }.defer;
         }, offsetBeats);
     };
 

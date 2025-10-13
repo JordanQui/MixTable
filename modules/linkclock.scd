@@ -4,6 +4,9 @@
 
 ~setupLinkClock = {
     var quantum = 4;
+    var defaultTempoBPM = 120;
+    var defaultTempo = defaultTempoBPM / 60;
+    var sessionTempo;
 
     // Stop any previous monitoring task before creating a new one
     if (~linkClockMonitorTask.notNil) {
@@ -12,10 +15,45 @@
     };
 
     ~linkQuantum = quantum;
-    ~linkClock = LinkClock.new(tempo: 120/60);
+    ~linkClock = LinkClock.new(tempo: defaultTempo);
     ~linkClock.quantum_(quantum);
 
-    "[LinkClock] Initialised with quantum % beats".format(quantum).postln;
+    sessionTempo = {
+        var linkSession = (~linkClock.tryPerform(\link) ?? { nil });
+        var detectedTempo;
+
+        if(linkSession.notNil) {
+            [\tempo, \currentTempo, \getTempo].do { |selector|
+                if(detectedTempo.isNil) {
+                    var value = linkSession.tryPerform(selector);
+
+                    if(value.isKindOf(Function)) {
+                        value = value.value;
+                    };
+
+                    if(value.isNumber) {
+                        detectedTempo = value;
+                    };
+                };
+            };
+        };
+
+        detectedTempo;
+    }.value;
+
+    if(sessionTempo.isNumber and: { (sessionTempo - defaultTempo).abs > 0.0001 }) {
+        ~linkClock.tempo_(sessionTempo);
+        "[LinkClock] Tempo synchronisé sur la session Link: % BPM".format(
+            (sessionTempo * 60).round(0.01)
+        ).postln;
+    } {
+        "[LinkClock] Tempo par défaut utilisé: % BPM".format(defaultTempoBPM).postln;
+    };
+
+    "[LinkClock] Initialised with quantum % beats @ % BPM".format(
+        quantum,
+        (~linkClock.tempo * 60).round(0.01)
+    ).postln;
 
     ~linkClockMonitorTask = Task({
         var lastBeatNumber = -1;
