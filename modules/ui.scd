@@ -228,14 +228,15 @@
     };
 
     recordObserver = { |state|
-        var status = state[\state] ?? { \idle };
-        var quantum = (state[\quantum] ?? { measureIndicators.size.max(1) }).asInteger.max(1).clip(1, 16);
-        var measure;
+        var status, quantum, measure, buttonState;
+
+        status = state[\state] ?? { \idle };
+        quantum = (state[\quantum] ?? { measureIndicators.size.max(1) }).asInteger.max(1).clip(1, 16);
 
         updateMeasureIndicators.(quantum);
 
         measure = (state[\measure] ?? { 1 }).asInteger.clip(1, quantum);
-        var buttonState = switch(status,
+        buttonState = switch(status,
             \idle, { 0 },
             \waiting, { 1 },
             \stopping, { 1 },
