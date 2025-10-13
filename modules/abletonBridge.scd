@@ -1,4 +1,162 @@
 // Gestion de l'interface avec Ableton Bridge pour la fonction Record
+~abletonBridgeConfig = ~abletonBridgeConfig ?? {
+    (
+        host: "127.0.0.1",
+        sendPort: 9001,
+        receivePort: NetAddr.langPort,
+        quantum: 4
+    )
+};
+
+~abletonBridgeSockets = ~abletonBridgeSockets ?? { () };
+
+~configureAbletonBridge = { |config|
+    if(config.notNil) {
+        if(config.respondsTo(\pairsDo)) {
+            config.pairsDo { |key, value|
+                ~abletonBridgeConfig[key] = value;
+            };
+            ~ensureBridgeOsc.tryPerform(\value);
+        } {
+            if(config.respondsTo(\keysValuesDo)) {
+                config.keysValuesDo { |key, value|
+                    ~abletonBridgeConfig[key] = value;
+                };
+                ~ensureBridgeOsc.tryPerform(\value);
+            };
+        };
+    };
+};
+
+~ensureAbletonBridgeSocket = { |key = \default|
+    var config = ~abletonBridgeConfig;
+    var host = config[\host] ?? { "127.0.0.1" };
+    var port = config[\sendPort] ?? { 9001 };
+    if(~abletonBridgeSockets[key].isNil) {
+        ~abletonBridgeSockets[key] = NetAddr(host, port);
+    } {
+        var socket = ~abletonBridgeSockets[key];
+        if(socket.hostname != host or: { socket.port != port }) {
+            ~abletonBridgeSockets[key] = NetAddr(host, port);
+        };
+    };
+    ~abletonBridgeSockets[key];
+};
+
+~abletonBridgeSend = { |path, ...args|
+    var socket = ~ensureAbletonBridgeSocket.value;
+    if(socket.notNil) {
+        socket.sendMsg(path, *args);
+    };
+};
+
+~abletonBridgeOscDefs = ~abletonBridgeOscDefs ?? { List.new };
+~abletonBridgeCmdPeriodHandler = ~abletonBridgeCmdPeriodHandler ?? { nil };
+
+~freeAbletonBridgeOsc = {
+    ~abletonBridgeOscDefs.do(_.free);
+    ~abletonBridgeOscDefs.clear;
+    if(~abletonBridgeCmdPeriodHandler.notNil) {
+        CmdPeriod.remove(~abletonBridgeCmdPeriodHandler);
+        ~abletonBridgeCmdPeriodHandler = nil;
+    };
+    if(~abletonBridgeSockets.notNil) {
+        ~abletonBridgeSockets.clear;
+    };
+};
+
+~handleBridgeMeasure = { |rawMeasure, isAbsolute = true, quantumOverride = nil|
+    var quantum = quantumOverride ?? { ~linkClock.tryPerform(\quantum) } ?? { ~abletonBridgeConfig[\quantum] ?? { 4 } };
+    if(quantum.isNumber.not) { quantum = 4; };
+    quantum = quantum.asInteger.max(1);
+    ~abletonBridgeConfig[\quantum] = quantum;
+    var measure;
+    if(isAbsolute) {
+        measure = ((rawMeasure.asInteger - 1) % quantum) + 1;
+    } {
+        measure = rawMeasure.asInteger.clip(1, quantum);
+    };
+    ~setRecordMeasure.value(measure);
+};
+
+~handleBridgeRecordState = { |state|
+    var symbolState;
+    if(state.isNumber) {
+        symbolState = case
+        { state == 0 } { \idle }
+        { state == 1 } { \waiting }
+        { state == 2 } { \recording }
+        { state == 3 } { \stopping }
+        { \idle };
+    } {
+        symbolState = state.asSymbol;
+    };
+    switch(symbolState,
+        \idle, { ~setRecordState.tryPerform(\value, \idle); },
+        \stopped, { ~setRecordState.tryPerform(\value, \idle); },
+        \waiting, { ~setRecordState.tryPerform(\value, \waiting); },
+        \recording, { ~confirmRecordStart.value; },
+        \stopping, {
+            ~setRecordState.tryPerform(\value, \stopping);
+            if(~recordTransportState.notNil) {
+                ~recordTransportState[\pendingStop] = true;
+            };
+        },
+        {
+            ("Unknown record state from Ableton Bridge: %".format(state)).warn;
+        }
+    );
+};
+
+~ensureBridgeOsc = {
+    var config = ~abletonBridgeConfig;
+    var receivePort = config[\receivePort] ?? { NetAddr.langPort };
+    if(NetAddr.langPort != receivePort) {
+        NetAddr.langPort = receivePort;
+    };
+
+    ~freeAbletonBridgeOsc.value;
+
+    ["/mixTable/transport/measure", "/ableton/measure", "/ableton/bar"].do { |path|
+        var defName = ("abletonMeasureAbs_%".format(path.copy.replace("/", "_"))).asSymbol;
+        ~abletonBridgeOscDefs.add(OSCdef(defName, { |msg|
+            if(msg.size > 1) {
+                var quantum = if(msg.size > 2) { msg[2] } { nil };
+                ~handleBridgeMeasure.value(msg[1], true, quantum);
+            };
+        }, path));
+    };
+
+    ["/mixTable/transport/step", "/ableton/beat"].do { |path|
+        var defName = ("abletonMeasureRel_%".format(path.copy.replace("/", "_"))).asSymbol;
+        ~abletonBridgeOscDefs.add(OSCdef(defName, { |msg|
+            if(msg.size > 1) {
+                var quantum = if(msg.size > 2) { msg[2] } { nil };
+                ~handleBridgeMeasure.value(msg[1], false, quantum);
+            };
+        }, path));
+    };
+
+    ["/mixTable/transport/recordState", "/ableton/record/state"].do { |path|
+        var defName = ("abletonRecordState_%".format(path.copy.replace("/", "_"))).asSymbol;
+        ~abletonBridgeOscDefs.add(OSCdef(defName, { |msg|
+            if(msg.size > 1) {
+                ~handleBridgeRecordState.value(msg[1]);
+            };
+        }, path));
+    };
+
+    if(~abletonBridgeCmdPeriodHandler.isNil) {
+        ~abletonBridgeCmdPeriodHandler = {
+            ~freeAbletonBridgeOsc.value;
+            AppClock.sched(0.1, { ~ensureBridgeOsc.value; nil });
+        };
+        CmdPeriod.add(~abletonBridgeCmdPeriodHandler);
+    };
+};
+
+~ensureBridgeOsc.value;
+
 ~ensureRecordTransport = {
     if(~recordTransportState.isNil) {
         ~recordTransportState = (
@@ -59,7 +217,7 @@
     ~ensureRecordTransport.value;
     rawMeasure = measure.asInteger.max(1);
     previousRaw = ~recordTransportState[\rawMeasure] ?? { rawMeasure };
-    clipped = rawMeasure.clip(1, 4);
+    clipped = (((rawMeasure - 1) % 4) + 1).clip(1, 4);
     wrapped = rawMeasure < previousRaw;
     if(previousRaw != rawMeasure) {
         ~recordTransportState[\rawMeasure] = rawMeasure;
@@ -77,20 +235,20 @@
 };
 
 ~ensureLinkClock = {
-    var quantum, isPlaying;
+    var quantum;
     if(~linkClock.isNil) {
-        ~linkClock = LinkClock.new;
-    };
-
-    isPlaying = (~linkClock.tryPerform(\isPlaying) ?? { false });
-    if(isPlaying.not) {
-        ~linkClock.tryPerform(\play);
+        var linkClass = Class.find(\LinkClock);
+        if(linkClass.notNil) {
+            ~linkClock = linkClass.new;
+        } {
+            ~linkClock = TempoClock.new;
+        };
     };
 
     quantum = (~linkClock.tryPerform(\quantum) ?? { 4 });
     if(quantum.isNumber.not) { quantum = 4; };
     quantum = quantum.asInteger.max(1);
-    ~linkClock.quantum = quantum;
+    ~linkClock.tryPerform(\quantum_, quantum);
 };
 
 ~stopLinkMeasureSync = {
@@ -146,7 +304,7 @@
         ~recordTransportState[\state] = \waiting;
         ~recordTransportState[\pendingStop] = false;
         ~notifyRecordTransport.value;
-        ~abletonBridge.tryPerform(\requestRecord);
+        ~abletonBridgeSend.value("/mixTable/transport/requestRecord", 1);
     };
 };
 
@@ -156,7 +314,7 @@
         ~recordTransportState[\state] = \idle;
         ~recordTransportState[\pendingStop] = false;
         ~notifyRecordTransport.value;
-        ~abletonBridge.tryPerform(\cancelRecord);
+        ~abletonBridgeSend.value("/mixTable/transport/cancelRecord", 1);
     };
 };
 
@@ -183,7 +341,7 @@
     ~recordTransportState[\pendingStop] = false;
     ~recordTransportState[\state] = \idle;
     ~notifyRecordTransport.value;
-    ~abletonBridge.tryPerform(\stopRecord);
+    ~abletonBridgeSend.value("/mixTable/transport/stopRecord", 1);
 };
 
 ~stopRecordTransport = {
@@ -205,7 +363,7 @@
                 ~recordTransportState[\state] = \idle;
                 ~recordTransportState[\pendingStop] = false;
                 ~notifyRecordTransport.value;
-                ~abletonBridge.tryPerform(\stopRecord);
+                ~abletonBridgeSend.value("/mixTable/transport/stopRecord", 1);
             };
         }
     );
