@@ -34,7 +34,7 @@
     ~stopLinkClick.value;
 
     quantum = (~linkClock.tryPerform(\quantum) ?? { ~linkQuantum ?? { 4 } });
-    offset = ~linkClockOffsetBeats ?? { 0 };
+    offset = 0;
     startBeat = (~linkClock.elapsedBeats.ceil) + offset;
 
     ~linkClickEvent = ~linkClock.schedAbs(startBeat, { |scheduledBeat|
