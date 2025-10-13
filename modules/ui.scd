@@ -49,7 +49,7 @@
     measureIndicators = (1..4).collect { |number|
         StaticText(measureContainer)
             .string_(number.asString)
-            .alignment_(\center)
+            .align_(\center)
             .font_(Font("Helvetica", 13))
             .stringColor_(Color.white)
             .background_(measureInactiveColor)
@@ -214,6 +214,7 @@
         var buttonState = case
         { status == \idle } { 0 }
         { status == \waiting } { 1 }
+        { status == \stopping } { 1 }
         { status == \recording } { 2 }
         { 0 };
 
