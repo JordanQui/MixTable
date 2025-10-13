@@ -81,6 +81,7 @@ SynthDef(\mixChannel, {
 
     // S'assurer que toutes les définitions de synthés précédemment envoyées
     // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
+    s.latency = 0.01;
     s.sync;
 
     ~mixBus = Bus.audio(s, 2);
