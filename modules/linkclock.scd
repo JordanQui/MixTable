@@ -12,7 +12,8 @@
     };
 
     ~linkQuantum = quantum;
-    ~linkClock = LinkClock.new(tempo: 120/60, quantum: quantum);
+    ~linkClock = LinkClock.new(tempo: 120/60);
+    ~linkClock.quantum_(quantum);
 
     "[LinkClock] Initialised with quantum % beats".format(quantum).postln;
 
