@@ -30,8 +30,9 @@
     ~recordState = ~recordState ?? { \idle };
     ~recordStartPending = false;
     ~recordStopPending = false;
-    // Correction empirique pour compenser la latence observée (~5 doubles-croches).
-    ~recordTimingOffsetBeats = ~recordTimingOffsetBeats ?? { 5/4 };
+    ~recordPrepared = false;
+    // Décalage utilisateur optionnel pour le déclenchement de l'enregistrement.
+    ~recordTimingOffsetBeats = ~recordTimingOffsetBeats ?? { 0 };
 
     formatLinkPosition = { |beats|
         var quantum = (~linkClock.tryPerform(\quantum) ?? { ~linkQuantum ?? { 4 } });
@@ -105,6 +106,7 @@
 
         ~recordStartPending = true;
         ~recordStopPending = false;
+        ~recordPrepared = false;
         ~recordState = \arming;
         updateRecordButtonState.(~recordState);
 
@@ -118,8 +120,28 @@
             ^thisThread;
         };
 
+        recordBus = (~recordBusIndex ?? { 0 });
+        recordChannels = (~recordNumChannels ?? { s.options.numOutputBusChannels ?? { 2 } });
+
+        Routine({
+            var prepBeats;
+            prepBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { beats });
+
+            "[Record] Preparing server recording (position: %)".format(
+                formatLinkPosition.(prepBeats)
+            ).postln;
+
+            s.prepareForRecord(numChannels: recordChannels);
+            s.sync;
+
+            "[Record] Server prepared for recording".postln;
+            {
+                ~recordPrepared = true;
+            }.defer;
+        }).play(SystemClock);
+
         scheduler.value({
-            var triggerBeats, recordBus, recordChannels;
+            var triggerBeats;
 
             triggerBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
 
@@ -129,10 +151,11 @@
                 offsetBeats.round(0.001)
             ).postln;
 
-            recordBus = (~recordBusIndex ?? { 0 });
-            recordChannels = (~recordNumChannels ?? { s.options.numOutputBusChannels ?? { 2 } });
-
             if(~recordStartPending.not) { ^nil };
+
+            if(~recordPrepared.not) {
+                "[Record] Warning: recording was not fully prepared in time".postln;
+            };
 
             Routine({
                 var routineBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { triggerBeats });
@@ -141,8 +164,6 @@
                     formatLinkPosition.(routineBeats)
                 ).postln;
 
-                s.prepareForRecord(numChannels: recordChannels, bus: recordBus);
-                s.sync;
                 s.record(numChannels: recordChannels, bus: recordBus);
 
                 "[Record] Server recording command sent (position: %)".format(
@@ -165,6 +186,7 @@
         "[Record] Arming cancelled".postln;
 
         ~recordStartPending = false;
+        ~recordPrepared = false;
         ~recordState = \idle;
         updateRecordButtonState.(~recordState);
     };
@@ -223,6 +245,7 @@
             {
                 ~recordStopPending = false;
                 ~recordState = \idle;
+                ~recordPrepared = false;
                 "[Record] State set to idle after stop".postln;
                 updateRecordButtonState.(~recordState);
             }.defer;
