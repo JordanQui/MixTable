@@ -1,6 +1,6 @@
 ~createUI = {
     var window, channelViews, headerBar, channelArea, headerSpacer;
-    var recordButton, measureContainer, measureIndicators, recordObserver;
+    var recordButton, measureContainer, measureIndicators, recordObserver, updateMeasureIndicators;
     var windowColor = Color(0.08, 0.08, 0.1);
     var panelColor = Color(0.12, 0.12, 0.16);
     var sectionColor = Color(0.18, 0.18, 0.22);
@@ -46,23 +46,42 @@
     measureContainer = CompositeView(headerBar)
         .background_(panelColor);
 
-    measureIndicators = (1..4).collect { |number|
-        StaticText(measureContainer)
-            .string_(number.asString)
-            .align_(\center)
-            .font_(Font("Helvetica", 13))
-            .stringColor_(Color.white)
-            .background_(measureInactiveColor)
-            .minWidth_(32)
-            .maxHeight_(28);
+    measureIndicators = Array.new;
+
+    updateMeasureIndicators = { |quantum|
+        quantum = quantum.asInteger.max(1).clip(1, 16);
+        if(measureIndicators.size != quantum) {
+            if(measureContainer.respondsTo(\removeAll)) {
+                measureContainer.removeAll;
+            } {
+                measureContainer.children.do(_.remove);
+            };
+            measureIndicators = Array.fill(quantum, { |idx|
+                StaticText(measureContainer)
+                    .string_((idx + 1).asString)
+                    .align_(\center)
+                    .font_(Font("Helvetica", 13))
+                    .stringColor_(Color.white)
+                    .background_(measureInactiveColor)
+                    .minWidth_(32)
+                    .maxHeight_(28);
+            });
+            measureContainer.layout_(HLayout(6, *(measureIndicators.collect { |indicator|
+                [indicator, 0]
+            })));
+        } {
+            measureIndicators.do { |indicator, idx|
+                indicator.string_((idx + 1).asString);
+            };
+        };
     };
 
-    measureIndicators[0].background_(measureActiveColor);
-    measureIndicators[0].stringColor_(Color.black);
+    updateMeasureIndicators.(4);
 
-    measureContainer.layout_(HLayout(6, *(measureIndicators.collect { |indicator|
-        [indicator, 0]
-    })));
+    if(measureIndicators.notEmpty) {
+        measureIndicators[0].background_(measureActiveColor);
+        measureIndicators[0].stringColor_(Color.black);
+    };
 
     headerSpacer = CompositeView(headerBar)
         .background_(panelColor);
@@ -210,7 +229,12 @@
 
     recordObserver = { |state|
         var status = state[\state] ?? { \idle };
-        var measure = (state[\measure] ?? { 1 }).clip(1, 4);
+        var quantum = (state[\quantum] ?? { measureIndicators.size.max(1) }).asInteger.max(1).clip(1, 16);
+        var measure;
+
+        updateMeasureIndicators.(quantum);
+
+        measure = (state[\measure] ?? { 1 }).asInteger.clip(1, quantum);
         var buttonState = case
         { status == \idle } { 0 }
         { status == \waiting } { 1 }
