@@ -73,6 +73,64 @@
     };
 };
 
+~ensureLinkClock = {
+    var quantum;
+    if(~linkClock.isNil) {
+        ~linkClock = LinkClock.new;
+    };
+    quantum = (~linkClock.tryPerform(\quantum) ?? { 4 });
+    if(quantum.isNumber.not) { quantum = 4; };
+    quantum = quantum.asInteger.max(1);
+    ~linkClock.quantum = quantum;
+};
+
+~stopLinkMeasureSync = {
+    if(~linkMeasureRoutine.notNil) {
+        ~linkMeasureRoutine.stop;
+        ~linkMeasureRoutine = nil;
+    };
+    if(~linkClockCmdPeriodHandler.notNil) {
+        CmdPeriod.remove(~linkClockCmdPeriodHandler);
+        ~linkClockCmdPeriodHandler = nil;
+    };
+};
+
+~startLinkMeasureSync = {
+    ~ensureLinkClock.value;
+
+    if(~linkMeasureRoutine.notNil) {
+        ~linkMeasureRoutine.stop;
+    };
+
+    ~linkMeasureRoutine = Routine({
+        var lastMeasure = nil;
+        var quantum, beat, measure, linkIsPlaying;
+        loop {
+            linkIsPlaying = (~linkClock.tryPerform(\isPlaying) ?? { true });
+            if(linkIsPlaying) {
+                quantum = (~linkClock.tryPerform(\quantum) ?? { 4 }).asInteger.max(1);
+                beat = (~linkClock.tryPerform(\beats) ?? { 0 }).asFloat;
+                measure = (((beat.floor) % quantum) + 1).clip(1, quantum);
+                if(lastMeasure != measure) {
+                    ~setRecordMeasure.value(measure);
+                    lastMeasure = measure;
+                };
+            } {
+                if(lastMeasure.notNil) {
+                    ~setRecordMeasure.value(1);
+                    lastMeasure = nil;
+                };
+            };
+            0.05.wait;
+        };
+    }).play(AppClock);
+
+    if(~linkClockCmdPeriodHandler.isNil) {
+        ~linkClockCmdPeriodHandler = { ~stopLinkMeasureSync.value };
+        CmdPeriod.add(~linkClockCmdPeriodHandler);
+    };
+};
+
 ~requestRecordAtNextBar = {
     ~ensureRecordTransport.value;
     if(~recordTransportState[\state] == \idle) {
@@ -157,3 +215,4 @@
 
 // Initialisation
 ~ensureRecordTransport.value;
+~startLinkMeasureSync.value;

@@ -235,6 +235,7 @@
     window.onClose = {
         ~mixWindow = nil;
         ~removeRecordObserver.tryPerform(\value, recordObserver);
+        ~stopLinkMeasureSync.tryPerform(\value);
         {
             ~cleanupAudio.tryPerform(\value);
             s.quit;
