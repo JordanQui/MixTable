@@ -472,12 +472,13 @@
     routine = Routine({
         var lastMeasure = nil;
         var lastQuantum = nil;
+        var lastBeatIndex = nil;
         var lastPlayingState = nil;
-        var quantum, beat, measure, linkIsPlaying, tempo, beatDur, elapsed;
+        var quantum, beat, beatIndex, measure, linkIsPlaying, tempo, beatDur, elapsed;
         loop {
             linkIsPlaying = (~linkClock.tryPerform(\isPlaying) ?? { true });
             if(linkIsPlaying != lastPlayingState) {
-                tempo = (~linkClock.tryPerform(\tempo) ?? { 0 }).round(0.01);
+                tempo = ((~linkClock.tryPerform(\tempo) ?? { 0 }) * 60).round(0.01);
                 elapsed = Main.elapsedTime ?? { 0 };
                 ~mixTableLog.value("LinkClock", "Playing state changed: % (tempo:% bpm, elapsed:%s)".format(
                     linkIsPlaying,
@@ -486,26 +487,45 @@
                 ));
                 lastPlayingState = linkIsPlaying;
             };
-            if(linkIsPlaying) {
+            beat = ~linkClock.tryPerform(\beats);
+            if(beat.notNil) {
+                beat = beat.asFloat;
+                beatIndex = beat.floor.asInteger;
                 quantum = (~linkClock.tryPerform(\quantum) ?? { 4 }).asInteger.max(1);
-                beat = (~linkClock.tryPerform(\beats) ?? { 0 }).asFloat;
-                measure = (((beat.floor) % quantum) + 1).clip(1, quantum);
-                if((lastMeasure != measure) or: { lastQuantum != quantum }) {
-                    ~setRecordMeasure.value(measure, quantum);
-                    lastMeasure = measure;
-                    lastQuantum = quantum;
-                    tempo = (~linkClock.tryPerform(\tempo) ?? { 0 }).round(0.01);
-                    beatDur = (~linkClock.tryPerform(\beatDur) ?? { 0 }).round(0.001);
-                    elapsed = Main.elapsedTime ?? { 0 };
-                    ~mixTableLog.value("LinkClock", "Beat update - beat:% measure:%/% tempo:% bpm beatDur:%s elapsed:%s".format(
-                        beat.round(0.001),
-                        measure,
-                        quantum,
-                        tempo,
-                        beatDur.asString,
-                        elapsed.round(0.001).asString
-                    ));
+                measure = ((beatIndex % quantum) + 1).clip(1, quantum);
+                if(linkIsPlaying or: { lastBeatIndex.isNil } or: { beatIndex != lastBeatIndex }) {
+                    if((lastMeasure != measure) or: { lastQuantum != quantum } or: { lastBeatIndex != beatIndex }) {
+                        ~setRecordMeasure.value(measure, quantum);
+                        lastMeasure = measure;
+                        lastQuantum = quantum;
+                        tempo = ((~linkClock.tryPerform(\tempo) ?? { 0 }) * 60).round(0.01);
+                        beatDur = (~linkClock.tryPerform(\beatDur) ?? { 0 }).round(0.001);
+                        elapsed = Main.elapsedTime ?? { 0 };
+                        ~mixTableLog.value("LinkClock", "Beat update - beat:% measure:%/% tempo:% bpm beatDur:%s elapsed:%s".format(
+                            beat.round(0.001),
+                            measure,
+                            quantum,
+                            tempo,
+                            beatDur.asString,
+                            elapsed.round(0.001).asString
+                        ));
+                    };
+                } {
+                    if(lastMeasure.notNil) {
+                        var currentQuantum = (~recordTransportState.tryPerform(\at, \quantum) ?? { quantum ?? { 4 } });
+                        if(currentQuantum.isNumber.not) { currentQuantum = 4; };
+                        currentQuantum = currentQuantum.asInteger.max(1);
+                        ~setRecordMeasure.value(1, currentQuantum);
+                        lastMeasure = nil;
+                        lastQuantum = currentQuantum;
+                        elapsed = Main.elapsedTime ?? { 0 };
+                        ~mixTableLog.value("LinkClock", "Link stopped - reset measure to 1/% (elapsed:%s)".format(
+                            currentQuantum,
+                            elapsed.round(0.001).asString
+                        ));
+                    };
                 };
+                lastBeatIndex = beatIndex;
             } {
                 if(lastMeasure.notNil) {
                     var currentQuantum = (~recordTransportState.tryPerform(\at, \quantum) ?? { quantum ?? { 4 } });
@@ -514,8 +534,9 @@
                     ~setRecordMeasure.value(1, currentQuantum);
                     lastMeasure = nil;
                     lastQuantum = currentQuantum;
+                    lastBeatIndex = nil;
                     elapsed = Main.elapsedTime ?? { 0 };
-                    ~mixTableLog.value("LinkClock", "Link stopped - reset measure to 1/% (elapsed:%s)".format(
+                    ~mixTableLog.value("LinkClock", "Link timeline unavailable - reset measure to 1/% (elapsed:%s)".format(
                         currentQuantum,
                         elapsed.round(0.001).asString
                     ));
