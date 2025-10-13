@@ -85,7 +85,11 @@
 ~linkClockNextBarBeat = {
     var quantum = (~linkClock.tryPerform(\quantum) ?? { ~linkQuantum ?? { 4 } });
     var beats = ~linkClock.tryPerform(\elapsedBeats) ?? { 0 };
-    (((beats / quantum).floor) + 1) * quantum;
+    var bars = beats / quantum;
+
+    // Utilise ceil pour ne pas sauter une mesure complète lorsque l'on est
+    // exactement (ou très proche) du début d'une mesure.
+    (bars.ceil) * quantum;
 };
 
 ~scheduleOnNextLinkBar = { |func, offsetBeats = 0|
