@@ -9,6 +9,11 @@ s.options.inDevice = "SoundCard";
 s.options.numOutputBusChannels = 2;
 s.options.numInputBusChannels = 18;
 
+// Réduit la latence de planification côté client pour les événements synchronisés
+// avec Ableton Link. La valeur par défaut (~0.2s) retarde fortement les clics
+// générés dans SuperCollider par rapport à ceux d'Ableton Live.
+s.latency = 0.02;
+
 // ======================
 // Initialisation
 // ======================
