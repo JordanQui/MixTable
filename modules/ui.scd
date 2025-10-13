@@ -100,15 +100,17 @@
 
             if(~recordStartPending.not) { ^nil };
 
-            s.prepareForRecord(numChannels: recordChannels, inputBus: recordBus);
-            s.sync;
-            s.record(numChannels: recordChannels, inputBus: recordBus);
+            Routine({
+                s.prepareForRecord(numChannels: recordChannels, bus: recordBus);
+                s.sync;
+                s.record(numChannels: recordChannels, bus: recordBus);
 
-            {
-                ~recordStartPending = false;
-                ~recordState = \recording;
-                updateRecordButtonState.(~recordState);
-            }.defer;
+                {
+                    ~recordStartPending = false;
+                    ~recordState = \recording;
+                    updateRecordButtonState.(~recordState);
+                }.defer;
+            }).play(SystemClock);
         });
     };
 
