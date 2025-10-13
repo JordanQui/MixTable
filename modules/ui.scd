@@ -100,7 +100,8 @@
 
             if(~recordStartPending.not) { ^nil };
 
-            s.prepareForRecord(numChannels: recordChannels);
+            s.prepareForRecord(bus: recordBus, numChannels: recordChannels);
+            s.sync;
             s.record(bus: recordBus, numChannels: recordChannels);
 
             {
