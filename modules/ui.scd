@@ -100,8 +100,8 @@
 
             if(~recordStartPending.not) { ^nil };
 
-            s.prepareForRecord(numChannels: recordChannels, bus: recordBus);
-            s.record(numChannels: recordChannels, bus: recordBus);
+            s.prepareForRecord(numChannels: recordChannels);
+            s.record(bus: recordBus, numChannels: recordChannels);
 
             {
                 ~recordStartPending = false;
@@ -142,7 +142,7 @@
         scheduler.value({
             if(~recordStopPending.not) { ^nil };
 
-            if(s.recording) { s.stopRecording };
+            if(s.isRecording) { s.stopRecording };
 
             {
                 ~recordStopPending = false;
