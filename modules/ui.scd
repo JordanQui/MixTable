@@ -236,6 +236,7 @@
         ~mixWindow = nil;
         ~removeRecordObserver.tryPerform(\value, recordObserver);
         ~stopLinkMeasureSync.tryPerform(\value);
+        ~freeAbletonBridgeOsc.tryPerform(\value);
         {
             ~cleanupAudio.tryPerform(\value);
             s.quit;
