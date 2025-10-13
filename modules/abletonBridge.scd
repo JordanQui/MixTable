@@ -74,10 +74,16 @@
 };
 
 ~ensureLinkClock = {
-    var quantum;
+    var quantum, isPlaying;
     if(~linkClock.isNil) {
         ~linkClock = LinkClock.new;
     };
+
+    isPlaying = (~linkClock.tryPerform(\isPlaying) ?? { false });
+    if(isPlaying.not) {
+        ~linkClock.tryPerform(\play);
+    };
+
     quantum = (~linkClock.tryPerform(\quantum) ?? { 4 });
     if(quantum.isNumber.not) { quantum = 4; };
     quantum = quantum.asInteger.max(1);
