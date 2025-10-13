@@ -1,5 +1,6 @@
 ~createUI = {
     var window, topBar, channelArea, channelViews, recordButton;
+    var recordBus, recordChannels;
     var windowColor = Color(0.08, 0.08, 0.1);
     var panelColor = Color(0.12, 0.12, 0.16);
     var sectionColor = Color(0.18, 0.18, 0.22);
