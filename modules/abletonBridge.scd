@@ -1,13 +1,15 @@
 // Gestion de l'interface avec Ableton Bridge pour la fonction Record
 ~mixTableLog = ~mixTableLog ?? { |tag, message|
-    var prefix = "[MixTable]";
-    var runtime = if(Main.respondsTo(\elapsedTime)) { Main.elapsedTime } { 0 };
+    var prefix, runtime, date, timestamp;
+
+    prefix = "[MixTable]";
+    runtime = if(Main.respondsTo(\elapsedTime)) { Main.elapsedTime } { 0 };
 
     if(runtime.isNil) {
         runtime = 0;
     };
-    var date = Date.getDate;
-    var timestamp = date.tryPerform(\stamp);
+    date = Date.getDate;
+    timestamp = date.tryPerform(\stamp);
 
     if(timestamp.isNil) {
         timestamp = date.tryPerform(\asString);
