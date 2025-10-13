@@ -68,6 +68,9 @@
         ~recordTransportState[\measure] = clipped;
         ~notifyRecordTransport.value;
     };
+    if((~recordTransportState[\state] == \waiting) and: { wrapped }) {
+        ~confirmRecordStart.value;
+    };
     if((~recordTransportState[\state] == \stopping) and: { ~recordTransportState[\pendingStop] } and: { wrapped }) {
         ~finalizePendingStop.value;
     };
