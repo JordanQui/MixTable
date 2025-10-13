@@ -95,10 +95,13 @@
         };
 
         scheduler.value({
+            var recordBus = (~recordBusIndex ?? { 0 });
+            var recordChannels = (~recordNumChannels ?? { s.options.numOutputBusChannels ?? { 2 } });
+
             if(~recordStartPending.not) { ^nil };
 
-            s.prepareForRecord;
-            s.record;
+            s.prepareForRecord(numChannels: recordChannels, bus: recordBus);
+            s.record(numChannels: recordChannels, bus: recordBus);
 
             {
                 ~recordStartPending = false;
@@ -139,7 +142,7 @@
         scheduler.value({
             if(~recordStopPending.not) { ^nil };
 
-            s.stopRecording;
+            if(s.recording) { s.stopRecording };
 
             {
                 ~recordStopPending = false;

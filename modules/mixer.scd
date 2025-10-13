@@ -71,6 +71,8 @@ SynthDef(\mixChannel, {
     ~mixBus = nil;
     ~inputGroup = nil;
     ~outputGroup = nil;
+    ~recordBusIndex = nil;
+    ~recordNumChannels = nil;
 };
 
 ~setupAudio = {
@@ -85,6 +87,9 @@ SynthDef(\mixChannel, {
 
     ~inputGroup = Group.head(s);
     ~outputGroup = Group.after(~inputGroup);
+
+    ~recordBusIndex = ~mixBus.index;
+    ~recordNumChannels = ~mixBus.numChannels;
 
     ~channelStates = Array.fill(~mixInputs.size, {
         var eqState = IdentityDictionary.new;
