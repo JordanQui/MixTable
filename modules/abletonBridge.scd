@@ -1,4 +1,12 @@
 // Gestion de l'interface avec Ableton Bridge pour la fonction Record
+~mixTableLog = ~mixTableLog ?? { |tag, message|
+    var prefix = "[MixTable]";
+    if(tag.notNil) {
+        prefix = prefix ++ " [" ++ tag.asString ++ "]";
+    };
+    (prefix ++ " " ++ message.asString).postln;
+};
+
 ~abletonBridgeConfig = ~abletonBridgeConfig ?? {
     (
         host: "127.0.0.1",
@@ -88,6 +96,13 @@
     };
 
     ~setRecordMeasure.value(normalizedMeasure, quantum, absoluteMeasure);
+    ~mixTableLog.value("AbletonBridge", "Measure message: raw:% normalized:% absolute:% quantum:% mode:%".format(
+        rawMeasure,
+        normalizedMeasure,
+        absoluteMeasure,
+        quantum,
+        if(isAbsolute) { "absolute" } { "relative" }
+    ));
 };
 
 ~handleBridgeRecordState = { |state|
@@ -117,6 +132,7 @@
             ("Unknown record state from Ableton Bridge: %".format(state)).warn;
         }
     );
+    ~mixTableLog.value("AbletonBridge", "Record state received: %".format(symbolState));
 };
 
 ~ensureBridgeOsc = {
@@ -271,6 +287,7 @@
     if(~recordTransportState[\measure] != normalizedMeasure) {
         ~recordTransportState[\measure] = normalizedMeasure;
         ~notifyRecordTransport.value;
+        ~mixTableLog.value("Transport", "Measure advanced to %/% (raw %).".format(normalizedMeasure, quantum, nextRaw));
     } {
         wrapped = false;
     };
@@ -348,16 +365,28 @@
 
     ~linkMeasureRoutine = Routine({
         var lastMeasure = nil;
+        var lastQuantum = nil;
+        var lastPlayingState = nil;
         var quantum, beat, measure, linkIsPlaying;
         loop {
             linkIsPlaying = (~linkClock.tryPerform(\isPlaying) ?? { true });
+            if(linkIsPlaying != lastPlayingState) {
+                ~mixTableLog.value("LinkClock", "Playing state changed: %".format(linkIsPlaying));
+                lastPlayingState = linkIsPlaying;
+            };
             if(linkIsPlaying) {
                 quantum = (~linkClock.tryPerform(\quantum) ?? { 4 }).asInteger.max(1);
                 beat = (~linkClock.tryPerform(\beats) ?? { 0 }).asFloat;
                 measure = (((beat.floor) % quantum) + 1).clip(1, quantum);
-                if(lastMeasure != measure) {
+                if((lastMeasure != measure) or: { lastQuantum != quantum }) {
                     ~setRecordMeasure.value(measure, quantum);
                     lastMeasure = measure;
+                    lastQuantum = quantum;
+                    ~mixTableLog.value("LinkClock", "Beat update - beat:% measure:%/%".format(
+                        beat.round(0.001),
+                        measure,
+                        quantum
+                    ));
                 };
             } {
                 if(lastMeasure.notNil) {
@@ -366,6 +395,8 @@
                     currentQuantum = currentQuantum.asInteger.max(1);
                     ~setRecordMeasure.value(1, currentQuantum);
                     lastMeasure = nil;
+                    lastQuantum = currentQuantum;
+                    ~mixTableLog.value("LinkClock", "Link stopped - reset measure to 1/%".format(currentQuantum));
                 };
             };
             0.05.wait;
@@ -385,6 +416,7 @@
         ~recordTransportState[\pendingStop] = false;
         ~notifyRecordTransport.value;
         ~abletonBridgeSend.value("/mixTable/transport/requestRecord", 1);
+        ~mixTableLog.value("Transport", "Record requested for next bar.");
     };
 };
 
@@ -395,6 +427,7 @@
         ~recordTransportState[\pendingStop] = false;
         ~notifyRecordTransport.value;
         ~abletonBridgeSend.value("/mixTable/transport/cancelRecord", 1);
+        ~mixTableLog.value("Transport", "Record request cancelled.");
     };
 };
 
@@ -405,6 +438,10 @@
         ~recordTransportState[\pendingStop] = false;
         ~notifyRecordTransport.value;
         ~startServerRecording.tryPerform(\value);
+        ~mixTableLog.value("Transport", "Recording confirmed at measure %/%".format(
+            ~recordTransportState[\measure] ?? { 1 },
+            ~recordTransportState[\quantum] ?? { 4 }
+        ));
     };
 };
 
@@ -414,6 +451,7 @@
         ~recordTransportState[\state] = \recording;
         ~recordTransportState[\pendingStop] = false;
         ~notifyRecordTransport.value;
+        ~mixTableLog.value("Transport", "Pending stop cancelled.");
     };
 };
 
@@ -424,6 +462,7 @@
     ~notifyRecordTransport.value;
     ~stopServerRecording.tryPerform(\value);
     ~abletonBridgeSend.value("/mixTable/transport/stopRecord", 1);
+    ~mixTableLog.value("Transport", "Recording stopped at wrap.");
 };
 
 ~stopRecordTransport = {
@@ -433,20 +472,23 @@
             ~recordTransportState[\state] = \stopping;
             ~recordTransportState[\pendingStop] = true;
             ~notifyRecordTransport.value;
+            ~mixTableLog.value("Transport", "Stop requested at next bar.");
         },
         \stopping, {
             // already waiting for the bar to end
+            ~mixTableLog.value("Transport", "Stop already pending.");
         },
         \waiting, {
             ~cancelPendingRecord.value;
         },
-        { 
+        {
             if(~recordTransportState[\state] != \idle) {
                 ~recordTransportState[\state] = \idle;
                 ~recordTransportState[\pendingStop] = false;
                 ~notifyRecordTransport.value;
                 ~stopServerRecording.tryPerform(\value);
                 ~abletonBridgeSend.value("/mixTable/transport/stopRecord", 1);
+                ~mixTableLog.value("Transport", "Immediate stop executed.");
             };
         }
     );
@@ -454,6 +496,7 @@
 
 ~toggleRecordTransport = {
     ~ensureRecordTransport.value;
+    ~mixTableLog.value("Transport", "Toggle requested from state %".format(~recordTransportState[\state] ?? { \idle }));
     switch(~recordTransportState[\state],
         \idle, { ~requestRecordAtNextBar.value },
         \waiting, { ~cancelPendingRecord.value },
