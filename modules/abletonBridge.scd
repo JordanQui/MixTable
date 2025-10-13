@@ -1,50 +1,63 @@
 // Gestion de l'interface avec Ableton Bridge pour la fonction Record
-~mixTableLog = ~mixTableLog ?? { |tagOrMessage, message = nil ... extra|
-    var prefix, runtime, date, timestamp, tag, content;
+~ensureMixTableLogger = {
+    var ensureDefaultLogger;
+    ensureDefaultLogger = {
+        ~mixTableLog = { |tagOrMessage, message = nil ... extra|
+            var prefix, runtime, date, timestamp, tag, content;
 
-    prefix = "[MixTable]";
-    runtime = if(Main.respondsTo(\elapsedTime)) { Main.elapsedTime } { 0 };
+            prefix = "[MixTable]";
+            runtime = if(Main.respondsTo(\elapsedTime)) { Main.elapsedTime } { 0 };
 
-    if(runtime.isNil) {
-        runtime = 0;
-    };
-    date = Date.getDate;
-    timestamp = date.tryPerform(\stamp);
+            if(runtime.isNil) {
+                runtime = 0;
+            };
+            date = Date.getDate;
+            timestamp = date.tryPerform(\stamp);
 
-    if(timestamp.isNil) {
-        timestamp = date.tryPerform(\asString);
-    };
+            if(timestamp.isNil) {
+                timestamp = date.tryPerform(\asString);
+            };
 
-    if(timestamp.isNil) {
-        timestamp = "";
-    };
+            if(timestamp.isNil) {
+                timestamp = "";
+            };
 
-    if(timestamp.respondsTo(\asString)) {
-        timestamp = timestamp.asString;
-    };
+            if(timestamp.respondsTo(\asString)) {
+                timestamp = timestamp.asString;
+            };
 
-    if((message.isNil) and: { extra.isEmpty }) {
-        tag = nil;
-        content = tagOrMessage;
-    } {
-        tag = tagOrMessage;
-        content = [message] ++ extra;
-        content = content.select(_.notNil);
-        if(content.isEmpty) {
-            content = nil;
-        } {
-            content = content.collect(_.asString).join(" ");
+            if((message.isNil) and: { extra.isEmpty }) {
+                tag = nil;
+                content = tagOrMessage;
+            } {
+                tag = tagOrMessage;
+                content = [message] ++ extra;
+                content = content.select(_.notNil);
+                if(content.isEmpty) {
+                    content = nil;
+                } {
+                    content = content.collect(_.asString).join(" ");
+                };
+            };
+
+            if(tag.notNil) {
+                prefix = prefix ++ " [" ++ tag.asString ++ "]";
+            };
+
+            content = (content ?? { "" }).asString;
+
+            (prefix ++ " [" ++ timestamp ++ " @ " ++ runtime.round(0.001).asString ++ "s] " ++ content).postln;
         };
     };
 
-    if(tag.notNil) {
-        prefix = prefix ++ " [" ++ tag.asString ++ "]";
+    if(~mixTableLog.isNil or: { ~mixTableLog.respondsTo(\value).not }) {
+        ensureDefaultLogger.value;
     };
 
-    content = (content ?? { "" }).asString;
-
-    (prefix ++ " [" ++ timestamp ++ " @ " ++ runtime.round(0.001).asString ++ "s] " ++ content).postln;
+    ~mixTableLog;
 };
+
+~ensureMixTableLogger.value;
 
 ~abletonBridgeConfig = ~abletonBridgeConfig ?? {
     (
@@ -445,15 +458,18 @@
 };
 
 ~startLinkMeasureSync = {
+    var logger, routine;
+    logger = ~ensureMixTableLogger.value;
+
     ~ensureLinkClock.value;
 
     if(~linkMeasureRoutine.notNil) {
         ~linkMeasureRoutine.stop;
     };
 
-    ~mixTableLog.value("LinkClock", "Starting measure sync routine.");
+    logger.value("LinkClock", "Starting measure sync routine.");
 
-    ~linkMeasureRoutine = Routine({
+    routine = Routine({
         var lastMeasure = nil;
         var lastQuantum = nil;
         var lastPlayingState = nil;
@@ -509,10 +525,18 @@
         };
     }).play(AppClock);
 
+    ~linkMeasureRoutine = routine;
+
     if(~linkClockCmdPeriodHandler.isNil) {
         ~linkClockCmdPeriodHandler = { ~stopLinkMeasureSync.value };
         CmdPeriod.add(~linkClockCmdPeriodHandler);
     };
+
+    logger.value("LinkClock", "Measure sync routine ready (playing:%).".format(
+        (~linkClock.tryPerform(\isPlaying) ?? { false })
+    ));
+
+    routine
 };
 
 ~requestRecordAtNextBar = {
