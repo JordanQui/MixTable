@@ -34,6 +34,8 @@
     ~recordPrepared = false;
     // Décalage utilisateur optionnel pour le déclenchement de l'enregistrement.
     ~recordTimingOffsetBeats = ~recordTimingOffsetBeats ?? { 0 };
+    // Décalage supplémentaire appliqué lors de l'arrêt pour compenser une coupure anticipée.
+    ~recordStopDelaySeconds = ~recordStopDelaySeconds ?? { 0.005 };
 
     formatLinkPosition = { |beats|
         var quantum = (~linkClock.tryPerform(\quantum) ?? { ~linkQuantum ?? { 4 } });
@@ -223,6 +225,7 @@
 
         scheduler.value({
             var triggerBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { 0 });
+            var stopDelaySeconds = (~recordStopDelaySeconds ?? { 0 });
 
             "[Record] Scheduled stop triggered (position: %, pending stop: %, offset: % beats)".format(
                 formatLinkPosition.(triggerBeats),
@@ -232,24 +235,39 @@
 
             if(~recordStopPending.not) { ^nil };
 
-            if(s.isRecording) {
-                var stopBeats;
-                stopBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { triggerBeats });
+            Routine({
+                if(stopDelaySeconds > 0) {
+                    "[Record] Applying additional stop delay of % seconds".format(
+                        stopDelaySeconds.round(0.001)
+                    ).postln;
+                    stopDelaySeconds.wait;
+                };
 
-                "[Record] Server stop recording command sent (position: %)".format(
-                    formatLinkPosition.(stopBeats)
-                ).postln;
+                if(~recordStopPending) {
+                    var stopBeats = (~linkClock.tryPerform(\elapsedBeats) ?? { triggerBeats });
 
-                s.stopRecording;
-            };
+                    if(s.isRecording) {
+                        "[Record] Server stop recording command sent (position: %, delay: % s)".format(
+                            formatLinkPosition.(stopBeats),
+                            stopDelaySeconds.round(0.001)
+                        ).postln;
 
-            {
-                ~recordStopPending = false;
-                ~recordState = \idle;
-                ~recordPrepared = false;
-                "[Record] State set to idle after stop".postln;
-                updateRecordButtonState.(~recordState);
-            }.defer;
+                        s.stopRecording;
+                    } {
+                        "[Record] Stop delay elapsed but server was not recording".postln;
+                    };
+
+                    {
+                        ~recordStopPending = false;
+                        ~recordState = \idle;
+                        ~recordPrepared = false;
+                        "[Record] State set to idle after stop".postln;
+                        updateRecordButtonState.(~recordState);
+                    }.defer;
+                } {
+                    "[Record] Stop request no longer pending after delay; aborting stop command".postln;
+                };
+            }).play(SystemClock);
         }, offsetBeats);
     };
 
