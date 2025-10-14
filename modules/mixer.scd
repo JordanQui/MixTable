@@ -1,9 +1,8 @@
 // ================= Limiteur global =================
-SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0, recordOut = 0|
+SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0|
     var inSig = In.ar(input, 2);
     var limited = Limiter.ar(inSig, 0.99, 0.01).tanh;
     Out.ar(hardwareOut, limited);
-    Out.ar(recordOut, limited);
 }).add;
 
 // ================= Mixage et gestion des bus =================
@@ -65,16 +64,13 @@ SynthDef(\mixChannel, {
     };
 
     [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
-    [~mixBus, ~postLimiterBus].do(_.tryPerform(\free));
+    ~mixBus.tryPerform(\free);
 
     ~channelSynths = nil;
     ~limiterSynth = nil;
     ~mixBus = nil;
-    ~postLimiterBus = nil;
     ~inputGroup = nil;
     ~outputGroup = nil;
-    ~recordBusIndex = nil;
-    ~recordNumChannels = nil;
 };
 
 ~setupAudio = {
@@ -87,14 +83,9 @@ SynthDef(\mixChannel, {
     s.sync;
 
     ~mixBus = Bus.audio(s, 2);
-    ~postLimiterBus = Bus.audio(s, 2);
 
     ~inputGroup = Group.head(s);
     ~outputGroup = Group.after(~inputGroup);
-
-    // Enregistrer directement la sortie principale (après limiteur)
-    ~recordBusIndex = ~postLimiterBus.index;
-    ~recordNumChannels = ~postLimiterBus.numChannels;
 
     ~channelStates = Array.fill(~mixInputs.size, {
         var eqState = IdentityDictionary.new;
@@ -130,8 +121,7 @@ SynthDef(\mixChannel, {
 
     ~limiterSynth = Synth(\outputLimiter, [
         \input, ~mixBus,
-        \hardwareOut, 0,
-        \recordOut, ~postLimiterBus
+        \hardwareOut, 0
     ], target: ~outputGroup);
 
     ~setChannelGain = { |index, db|

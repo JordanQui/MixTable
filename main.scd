@@ -18,11 +18,9 @@ s.options.numInputBusChannels = 18;
 ~bootMixTable = {
     ("modules/mixer.scd").loadRelative;
     ("modules/ui.scd").loadRelative;
-    ("modules/linkclock.scd").loadRelative;
 
     ~setupAudio.value;
     ~createUI.value;
-    ~setupLinkClock.value;
 };
 
 // ======================
