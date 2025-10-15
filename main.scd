@@ -25,7 +25,7 @@ s.options.numInputBusChannels = 18;
 
 // ======================
 // Boot serveur
-// ======================
+//  ======================
 s.waitForBoot({ ~bootMixTable.value });
 
 s.makeWindow;
