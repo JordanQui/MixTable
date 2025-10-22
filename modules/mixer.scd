@@ -23,7 +23,8 @@ SynthDef(\mixChannel, {
     lowFreq = 120, lowRQ = 1, lowGain = 0,
     mid1Freq = 500, mid1RQ = 1, mid1Gain = 0,
     mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
-    highFreq = 8000, highRQ = 1, highGain = 0|
+    highFreq = 8000, highRQ = 1, highGain = 0,
+    irBuf = -1|
     var stereo, mono, sig, muteLevel;
     stereo = SoundIn.ar([inA, inB]);
     mono = SoundIn.ar(inA) ! 2;
@@ -65,15 +66,18 @@ SynthDef(\mixChannel, {
 
     [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     ~mixBus.tryPerform(\free);
+    ~ezConvIRBuffer.tryPerform(\free);
 
     ~channelSynths = nil;
     ~limiterSynth = nil;
     ~mixBus = nil;
     ~inputGroup = nil;
     ~outputGroup = nil;
+    ~ezConvIRBuffer = nil;
 };
 
 ~setupAudio = {
+    var irPath;
     // Nettoyage si nécessaire
     ~cleanupAudio.value;
 
@@ -83,6 +87,19 @@ SynthDef(\mixChannel, {
     s.sync;
 
     ~mixBus = Bus.audio(s, 2);
+
+    irPath = ~ezConvIRPath ?? {
+        (~projectRoot +/+ (~ezConvIRRelativePath ?? { "IRs/IR1.wav" })).standardizePath;
+    };
+
+    ~ezConvIRBuffer.tryPerform(\free);
+    if(irPath.notNil and: { File.exists(irPath) }) {
+        ~ezConvIRBuffer = Buffer.readChannel(s, irPath, channels: [0, 1]);
+    } {
+        ("Impulse response introuvable: " ++ irPath).warn;
+        ~ezConvIRBuffer = nil;
+    };
+    s.sync;
 
     ~inputGroup = Group.head(s);
     ~outputGroup = Group.after(~inputGroup);
@@ -115,7 +132,8 @@ SynthDef(\mixChannel, {
             \highFreq, state[\eq][\high][\freq],
             \highRQ, (state[\eq][\high][\q] ?? { 1 }).reciprocal,
             \highGain, state[\eq][\high][\gain],
-            \mute, state[\muted]
+            \mute, state[\muted],
+            \irBuf, (~ezConvIRBuffer.notNil).if({ ~ezConvIRBuffer.bufnum }, { -1 })
         ], target: ~inputGroup);
     };
 
