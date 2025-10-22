@@ -90,15 +90,18 @@ SynthDef(\mixChannel, {
 
     [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     ~mixBus.tryPerform(\free);
+    ~ezConvIRBuffer.tryPerform(\free);
 
     ~channelSynths = nil;
     ~limiterSynth = nil;
     ~mixBus = nil;
     ~inputGroup = nil;
     ~outputGroup = nil;
+    ~ezConvIRBuffer = nil;
 };
 
 ~setupAudio = {
+    var irPath;
     // Nettoyage si nécessaire
     ~cleanupAudio.value;
 
@@ -109,6 +112,19 @@ SynthDef(\mixChannel, {
     s.sync;
 
     ~mixBus = Bus.audio(s, 2);
+
+    irPath = ~ezConvIRPath ?? {
+        (~projectRoot +/+ (~ezConvIRRelativePath ?? { "IRs/IR1.wav" })).standardizePath;
+    };
+
+    ~ezConvIRBuffer.tryPerform(\free);
+    if(irPath.notNil and: { File.exists(irPath) }) {
+        ~ezConvIRBuffer = Buffer.readChannel(s, irPath, channels: [0, 1]);
+    } {
+        ("Impulse response introuvable: " ++ irPath).warn;
+        ~ezConvIRBuffer = nil;
+    };
+    s.sync;
 
     ~inputGroup = Group.head(s);
     ~outputGroup = Group.after(~inputGroup);

@@ -13,6 +13,13 @@ s.options.numOutputBusChannels = 2;
 s.options.numInputBusChannels = 18;
 
 // ======================
+// Gestion des chemins
+// ======================
+~projectRoot = thisProcess.nowExecutingPath.dirname;
+~ezConvIRRelativePath = "IRs/IR1.wav";
+~ezConvIRPath = (~projectRoot +/+ ~ezConvIRRelativePath).standardizePath;
+
+// ======================
 // Initialisation
 // ======================
 ~bootMixTable = {
