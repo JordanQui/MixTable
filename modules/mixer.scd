@@ -36,10 +36,7 @@ SynthDef(\mixChannel, {
     sig = BHiShelf.ar(sig, highFreq, highRQ, highGain.lag(0.1));
     sig = BPeakEQ.ar(sig, wideFreq, wideRQ, wideGain.lag(0.1));
     dry = sig;
-    wet = [
-        EZConv.ar(sig[0], convBuf),
-        EZConv.ar(sig[1], convBuf)
-    ];
+    wet = Convolution2.ar(sig, convBuf, 0, 4096);
     revMix = Lag.kr(revMix.clip(0, 1), 0.1);
     sig = (dry * (1 - revMix)) + (wet * revMix);
     muteLevel = Lag.kr(1 - mute, 0.05);
