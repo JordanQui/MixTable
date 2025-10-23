@@ -8,6 +8,8 @@ SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0|
 // ================= Mixage et gestion des bus =================
 
 // Définitions des tranches d'entrée
+~reverbFrameSize = 1024;
+
 ~mixInputs = [
     (label: "3 / 4",  channels: [2, 3],   isMono: 0),
     (label: "5 / 6",  channels: [4, 5],   isMono: 0),
@@ -36,7 +38,7 @@ SynthDef(\mixChannel, {
     sig = BHiShelf.ar(sig, highFreq, highRQ, highGain.lag(0.1));
     sig = BPeakEQ.ar(sig, wideFreq, wideRQ, wideGain.lag(0.1));
     dry = sig;
-    wet = Convolution2.ar(sig, convBuf, 0, 4096);
+    wet = Convolution2.ar(sig, convBuf, 0, ~reverbFrameSize);
     revMix = Lag.kr(revMix.clip(0, 1), 0.1);
     sig = (dry * (1 - revMix)) + (wet * revMix);
     muteLevel = Lag.kr(1 - mute, 0.05);
@@ -63,7 +65,7 @@ SynthDef(\mixChannel, {
 
 ~ensureReverbBuffer = {
     if(~reverbBuffer.isNil or: { ~reverbBuffer.bufnum < 0 }) {
-        var size = 4096;
+        var size = (~reverbFrameSize ?? { 1024 });
         var envelope = Env.perc(0.001, 1.2, curve: -4).asSignal(size);
         var impulse = FloatArray.newClear(size);
         size.do { |index|
