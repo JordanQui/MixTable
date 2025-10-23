@@ -8,7 +8,8 @@ SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0|
 // ================= Mixage et gestion des bus =================
 
 // Définitions des tranches d'entrée
-~reverbFrameSize = 1024;
+~defaultReverbFrameSize = 2048;
+~reverbFrameSize = ~defaultReverbFrameSize;
 
 ~mixInputs = [
     (label: "3 / 4",  channels: [2, 3],   isMono: 0),
@@ -38,7 +39,7 @@ SynthDef(\mixChannel, {
     sig = BHiShelf.ar(sig, highFreq, highRQ, highGain.lag(0.1));
     sig = BPeakEQ.ar(sig, wideFreq, wideRQ, wideGain.lag(0.1));
     dry = sig;
-    wet = Convolution2.ar(sig, convBuf, 0, ~reverbFrameSize);
+    wet = Convolution2.ar(sig, convBuf, 1, (~reverbFrameSize ?? { ~defaultReverbFrameSize }));
     revMix = Lag.kr(revMix.clip(0, 1), 0.1);
     sig = (dry * (1 - revMix)) + (wet * revMix);
     muteLevel = Lag.kr(1 - mute, 0.05);
@@ -63,17 +64,48 @@ SynthDef(\mixChannel, {
     wide: (freqKey: \wideFreq, gainKey: \wideGain, qKey: \wideRQ)
 );
 
-~ensureReverbBuffer = {
-    if(~reverbBuffer.isNil or: { ~reverbBuffer.bufnum < 0 }) {
-        var size = (~reverbFrameSize ?? { 1024 });
-        var envelope = Env.perc(0.001, 1.2, curve: -4).asSignal(size);
-        var impulse = FloatArray.newClear(size);
-        size.do { |index|
-            impulse[index] = envelope[index] * rrand(-0.3, 0.3);
-        };
-        impulse[0] = impulse[0] + 1.0;
-        ~reverbBuffer = Buffer.loadCollection(s, impulse);
+~ensureReverbBuffer = { |irPath = nil|
+    var resolvedPath, irExists, soundFile, frameSize, fallbackSize, envelope, impulse;
+
+    resolvedPath = irPath ?? {
+        ~ezConvIRPath ?? { (~projectRoot +/+ (~ezConvIRRelativePath ?? { "IRs/IR1.wav" })).standardizePath };
     };
+
+    ~reverbBuffer.tryPerform(\free);
+
+    irExists = resolvedPath.notNil and: { File.exists(resolvedPath) };
+
+    if(irExists) {
+        soundFile = SoundFile.openRead(resolvedPath);
+        if(soundFile.notNil) {
+            frameSize = soundFile.numFrames.max(1).nextPowerOfTwo;
+            soundFile.close;
+            soundFile.free;
+            ~reverbFrameSize = frameSize;
+            ~reverbBuffer = Buffer.readChannel(
+                s,
+                resolvedPath,
+                startFrame: 0,
+                numFrames: frameSize,
+                channels: [0]
+            );
+            ^nil;
+        };
+    };
+
+    if(resolvedPath.notNil and: { irExists.not }) {
+        ("Impulse response introuvable: " ++ resolvedPath).warn;
+    };
+
+    fallbackSize = (~defaultReverbFrameSize ?? { 2048 }).max(128).nextPowerOfTwo;
+    ~reverbFrameSize = fallbackSize;
+    envelope = Env.perc(0.001, 1.2, curve: -4).asSignal(fallbackSize);
+    impulse = FloatArray.newClear(fallbackSize);
+    fallbackSize.do { |index|
+        impulse[index] = envelope[index] * rrand(-0.3, 0.3);
+    };
+    impulse[0] = impulse[0] + 1.0;
+    ~reverbBuffer = Buffer.loadCollection(s, impulse);
 };
 
 ~cleanupAudio = {
@@ -89,14 +121,15 @@ SynthDef(\mixChannel, {
 
     [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     ~mixBus.tryPerform(\free);
-    ~ezConvIRBuffer.tryPerform(\free);
+    ~reverbBuffer.tryPerform(\free);
 
     ~channelSynths = nil;
     ~limiterSynth = nil;
     ~mixBus = nil;
     ~inputGroup = nil;
     ~outputGroup = nil;
-    ~ezConvIRBuffer = nil;
+    ~reverbBuffer = nil;
+    ~reverbFrameSize = ~defaultReverbFrameSize;
 };
 
 ~setupAudio = {
@@ -106,24 +139,14 @@ SynthDef(\mixChannel, {
 
     // S'assurer que toutes les définitions de synthés précédemment envoyées
     // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
-    s.latency = 0.01;
-    ~ensureReverbBuffer.value;
-    s.sync;
-
-    ~mixBus = Bus.audio(s, 2);
-
+    s.latency = 0.002;
     irPath = ~ezConvIRPath ?? {
         (~projectRoot +/+ (~ezConvIRRelativePath ?? { "IRs/IR1.wav" })).standardizePath;
     };
-
-    ~ezConvIRBuffer.tryPerform(\free);
-    if(irPath.notNil and: { File.exists(irPath) }) {
-        ~ezConvIRBuffer = Buffer.readChannel(s, irPath, channels: [0, 1]);
-    } {
-        ("Impulse response introuvable: " ++ irPath).warn;
-        ~ezConvIRBuffer = nil;
-    };
+    ~ensureReverbBuffer.value(irPath);
     s.sync;
+
+    ~mixBus = Bus.audio(s, 2);
 
     ~inputGroup = Group.head(s);
     ~outputGroup = Group.after(~inputGroup);
