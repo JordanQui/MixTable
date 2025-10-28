@@ -25,8 +25,8 @@ SynthDef(\mixChannel, {
     mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
     highFreq = 8000, highRQ = 1, highGain = 0,
     wideFreq = 1200, wideRQ = 1, wideGain = 0,
-    ezConvBuf = -1, revMix = 0|
-    var stereo, mono, sig, muteLevel, dry, wet, ezConvClass;
+    ezConvBuf = 0, ezConvFrameSize = 64, revMix = 0|
+    var stereo, mono, sig, muteLevel, dry, wet;
     stereo = SoundIn.ar([inA, inB]);
     mono = SoundIn.ar(inA) ! 2;
     sig = (stereo * (1 - isMono)) + (mono * isMono);
@@ -36,12 +36,7 @@ SynthDef(\mixChannel, {
     sig = BHiShelf.ar(sig, highFreq, highRQ, highGain.lag(0.1));
     sig = BPeakEQ.ar(sig, wideFreq, wideRQ, wideGain.lag(0.1));
     dry = sig;
-    ezConvClass = Class.find("EZConv");
-    wet = if((ezConvBuf >= 0) and: { ezConvClass.notNil and: { ezConvClass.respondsTo(\ar) } }, {
-        ezConvClass.ar(sig, ezConvBuf, 4096)
-    }, {
-        sig
-    });
+    wet = Convolution2.ar(sig, ezConvBuf, ezConvFrameSize.max(64));
     revMix = Lag.kr(revMix.clip(0, 1), 0.1);
     sig = (dry * (1 - revMix)) + (wet * revMix);
     muteLevel = Lag.kr(1 - mute, 0.05);
@@ -87,6 +82,7 @@ SynthDef(\mixChannel, {
     ~inputGroup = nil;
     ~outputGroup = nil;
     ~ezConvIRBuffer = nil;
+    ~ezConvFrameSize = nil;
 };
 
 ~setupAudio = {
@@ -106,13 +102,29 @@ SynthDef(\mixChannel, {
     };
 
     ~ezConvIRBuffer.tryPerform(\free);
+    ~ezConvFrameSize = 0;
     if(irPath.notNil and: { File.exists(irPath) }) {
         ~ezConvIRBuffer = Buffer.readChannel(s, irPath, channels: [0, 1]);
+        s.sync;
+        if(~ezConvIRBuffer.numFrames > 0) {
+            ~ezConvFrameSize = (~ezConvIRBuffer.numFrames.min(16384)).nextPowerOfTwo.max(64);
+        } {
+            ("IR vide: " ++ irPath).warn;
+        };
     } {
         ("Impulse response introuvable: " ++ irPath).warn;
-        ~ezConvIRBuffer = nil;
+        ~ezConvIRBuffer = Buffer.alloc(s, 64, 2);
+        s.sync;
+        ~ezConvFrameSize = 64;
     };
     s.sync;
+    if(~ezConvIRBuffer.isNil) {
+        ~ezConvIRBuffer = Buffer.alloc(s, 64, 2);
+        s.sync;
+    };
+    if(~ezConvFrameSize <= 0) {
+        ~ezConvFrameSize = 64;
+    };
 
     ~inputGroup = Group.head(s);
     ~outputGroup = Group.after(~inputGroup);
@@ -148,7 +160,8 @@ SynthDef(\mixChannel, {
             \wideFreq, state[\eq][\wide][\freq],
             \wideRQ, (state[\eq][\wide][\q] ?? { 1 }).reciprocal,
             \wideGain, state[\eq][\wide][\gain],
-            \ezConvBuf, (~ezConvIRBuffer.notNil).if({ ~ezConvIRBuffer.bufnum }, { -1 }),
+            \ezConvBuf, ~ezConvIRBuffer.bufnum,
+            \ezConvFrameSize, (~ezConvFrameSize ?? { 64 }),
             \revMix, state[\reverbMix],
             \mute, state[\muted]
         ], target: ~inputGroup);
