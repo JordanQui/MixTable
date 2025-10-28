@@ -25,8 +25,8 @@ SynthDef(\mixChannel, {
     mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
     highFreq = 8000, highRQ = 1, highGain = 0,
     wideFreq = 1200, wideRQ = 1, wideGain = 0,
-    convBuf = 0, revMix = 0|
-    var stereo, mono, sig, muteLevel, dry, wet;
+    ezConvBuf = -1, revMix = 0|
+    var stereo, mono, sig, muteLevel, dry, wet, ezConvClass;
     stereo = SoundIn.ar([inA, inB]);
     mono = SoundIn.ar(inA) ! 2;
     sig = (stereo * (1 - isMono)) + (mono * isMono);
@@ -36,7 +36,12 @@ SynthDef(\mixChannel, {
     sig = BHiShelf.ar(sig, highFreq, highRQ, highGain.lag(0.1));
     sig = BPeakEQ.ar(sig, wideFreq, wideRQ, wideGain.lag(0.1));
     dry = sig;
-    wet = Convolution2.ar(sig, convBuf, 0, 4096);
+    ezConvClass = Class.find("EZConv");
+    wet = if((ezConvBuf >= 0) and: { ezConvClass.notNil and: { ezConvClass.respondsTo(\ar) } }, {
+        ezConvClass.ar(sig, ezConvBuf, 4096)
+    }, {
+        sig
+    });
     revMix = Lag.kr(revMix.clip(0, 1), 0.1);
     sig = (dry * (1 - revMix)) + (wet * revMix);
     muteLevel = Lag.kr(1 - mute, 0.05);
@@ -60,19 +65,6 @@ SynthDef(\mixChannel, {
     high: (freqKey: \highFreq, gainKey: \highGain, qKey: \highRQ),
     wide: (freqKey: \wideFreq, gainKey: \wideGain, qKey: \wideRQ)
 );
-
-~ensureReverbBuffer = {
-    if(~reverbBuffer.isNil or: { ~reverbBuffer.bufnum < 0 }) {
-        var size = 4096;
-        var envelope = Env.perc(0.001, 1.2, curve: -4).asSignal(size);
-        var impulse = FloatArray.newClear(size);
-        size.do { |index|
-            impulse[index] = envelope[index] * rrand(-0.3, 0.3);
-        };
-        impulse[0] = impulse[0] + 1.0;
-        ~reverbBuffer = Buffer.loadCollection(s, impulse);
-    };
-};
 
 ~cleanupAudio = {
     [~channelSynths, ~limiterSynth].do { |item|
@@ -105,7 +97,6 @@ SynthDef(\mixChannel, {
     // S'assurer que toutes les définitions de synthés précédemment envoyées
     // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
     s.latency = 0.01;
-    ~ensureReverbBuffer.value;
     s.sync;
 
     ~mixBus = Bus.audio(s, 2);
@@ -157,7 +148,7 @@ SynthDef(\mixChannel, {
             \wideFreq, state[\eq][\wide][\freq],
             \wideRQ, (state[\eq][\wide][\q] ?? { 1 }).reciprocal,
             \wideGain, state[\eq][\wide][\gain],
-            \convBuf, ~reverbBuffer.bufnum,
+            \ezConvBuf, (~ezConvIRBuffer.notNil).if({ ~ezConvIRBuffer.bufnum }, { -1 }),
             \revMix, state[\reverbMix],
             \mute, state[\muted]
         ], target: ~inputGroup);
