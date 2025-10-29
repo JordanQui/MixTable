@@ -158,13 +158,14 @@ SynthDef(\mixChannel, {
     if(~ezConvIRBuffer.notNil) {
         ~ezConv = {
             var ez = EZConv(
-                s,             // server
-                ~reverbBus,    // in bus
-                ~mixBus,       // out bus
-                ~ezConvIRBuffer,
-                1.0,           // mix
-                2,             // number of input channels
-                2              // number of output channels
+                s,                 // server
+                ~ezConvIRBuffer,   // impulse response buffer
+                1.0,               // wet mix
+                1.0,               // output amplitude
+                ~reverbBus,        // input bus
+                ~mixBus,           // output bus
+                2,                 // number of input channels
+                2                  // number of output channels
             );
             ez.play(target: ~outputGroup, addAction: \addToHead);
             ez;
