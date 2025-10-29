@@ -157,7 +157,7 @@ SynthDef(\mixChannel, {
     ~ezConv.tryPerform(\free);
     if(~ezConvIRBuffer.notNil) {
         ~ezConv = {
-            EZConv(
+            var ez = EZConv(
                 server: s,
                 inBus: ~reverbBus,
                 outBus: ~mixBus,
@@ -165,12 +165,13 @@ SynthDef(\mixChannel, {
                 mix: 1.0,
                 numInputChannels: 2,
                 numOutputChannels: 2
-            )
+            );
+            ez.play(target: ~outputGroup, addAction: \addToHead);
+            ez;
         }.try { |error|
             ("Impossible d'initialiser EZConv: " ++ error).warn;
             nil
         };
-        ~ezConv.tryPerform(\play);
     } {
         "Impossible d'initialiser EZConv : aucun buffer IR disponible.".warn;
         ~ezConv = nil;
@@ -179,7 +180,7 @@ SynthDef(\mixChannel, {
     ~limiterSynth = Synth(\outputLimiter, [
         \input, ~mixBus,
         \hardwareOut, 0
-    ], target: ~outputGroup);
+    ], target: ~outputGroup, addAction: \addToTail);
 
     ~setChannelGain = { |index, db|
         if((index >= 0) and: { index < ~channelSynths.size }) {
