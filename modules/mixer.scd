@@ -8,8 +8,6 @@ SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0|
 // ================= Mixage et gestion des bus =================
 
 // Définitions des tranches d'entrée
-~reverbFrameSize = 1024;
-
 ~mixInputs = [
     (label: "3 / 4",  channels: [2, 3],   isMono: 0),
     (label: "5 / 6",  channels: [4, 5],   isMono: 0),
@@ -27,8 +25,8 @@ SynthDef(\mixChannel, {
     mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
     highFreq = 8000, highRQ = 1, highGain = 0,
     wideFreq = 1200, wideRQ = 1, wideGain = 0,
-    convBuf = 0, revMix = 0|
-    var stereo, mono, sig, muteLevel, dry, wet;
+    revMix = 0, reverbSendBus = 0|
+    var stereo, mono, sig, muteLevel, dryLevel, sendLevel;
     stereo = SoundIn.ar([inA, inB]);
     mono = SoundIn.ar(inA) ! 2;
     sig = (stereo * (1 - isMono)) + (mono * isMono);
@@ -37,13 +35,13 @@ SynthDef(\mixChannel, {
     sig = BPeakEQ.ar(sig, mid2Freq, mid2RQ, mid2Gain.lag(0.1));
     sig = BHiShelf.ar(sig, highFreq, highRQ, highGain.lag(0.1));
     sig = BPeakEQ.ar(sig, wideFreq, wideRQ, wideGain.lag(0.1));
-    dry = sig;
-    wet = Convolution2.ar(sig, convBuf, 0, ~reverbFrameSize);
     revMix = Lag.kr(revMix.clip(0, 1), 0.1);
-    sig = (dry * (1 - revMix)) + (wet * revMix);
     muteLevel = Lag.kr(1 - mute, 0.05);
     sig = sig * gainAmp * muteLevel;
-    Out.ar(outBus, sig);
+    dryLevel = sig * (1 - revMix);
+    sendLevel = sig * revMix;
+    Out.ar(outBus, dryLevel);
+    Out.ar(reverbSendBus, sendLevel);
 }).add;
 
 // Paramètres d'égalisation par défaut
@@ -63,19 +61,6 @@ SynthDef(\mixChannel, {
     wide: (freqKey: \wideFreq, gainKey: \wideGain, qKey: \wideRQ)
 );
 
-~ensureReverbBuffer = {
-    if(~reverbBuffer.isNil or: { ~reverbBuffer.bufnum < 0 }) {
-        var size = (~reverbFrameSize ?? { 1024 });
-        var envelope = Env.perc(0.001, 1.2, curve: -4).asSignal(size);
-        var impulse = FloatArray.newClear(size);
-        size.do { |index|
-            impulse[index] = envelope[index] * rrand(-0.3, 0.3);
-        };
-        impulse[0] = impulse[0] + 1.0;
-        ~reverbBuffer = Buffer.loadCollection(s, impulse);
-    };
-};
-
 ~cleanupAudio = {
     [~channelSynths, ~limiterSynth].do { |item|
         if(item.notNil) {
@@ -89,13 +74,18 @@ SynthDef(\mixChannel, {
 
     [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     ~mixBus.tryPerform(\free);
+    ~reverbBus.tryPerform(\free);
+    ~ezConv.tryPerform(\stop);
+    ~ezConv.tryPerform(\free);
     ~ezConvIRBuffer.tryPerform(\free);
 
     ~channelSynths = nil;
     ~limiterSynth = nil;
     ~mixBus = nil;
+    ~reverbBus = nil;
     ~inputGroup = nil;
     ~outputGroup = nil;
+    ~ezConv = nil;
     ~ezConvIRBuffer = nil;
 };
 
@@ -107,10 +97,8 @@ SynthDef(\mixChannel, {
     // S'assurer que toutes les définitions de synthés précédemment envoyées
     // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
     s.latency = 0.01;
-    ~ensureReverbBuffer.value;
-    s.sync;
-
     ~mixBus = Bus.audio(s, 2);
+    ~reverbBus = Bus.audio(s, 2);
 
     irPath = ~ezConvIRPath ?? {
         (~projectRoot +/+ (~ezConvIRRelativePath ?? { "IRs/IR1.wav" })).standardizePath;
@@ -159,10 +147,33 @@ SynthDef(\mixChannel, {
             \wideFreq, state[\eq][\wide][\freq],
             \wideRQ, (state[\eq][\wide][\q] ?? { 1 }).reciprocal,
             \wideGain, state[\eq][\wide][\gain],
-            \convBuf, ~reverbBuffer.bufnum,
             \revMix, state[\reverbMix],
+            \reverbSendBus, ~reverbBus,
             \mute, state[\muted]
         ], target: ~inputGroup);
+    };
+
+    ~ezConv.tryPerform(\stop);
+    ~ezConv.tryPerform(\free);
+    if(~ezConvIRBuffer.notNil) {
+        ~ezConv = {
+            EZConv(
+                server: s,
+                inBus: ~reverbBus,
+                outBus: ~mixBus,
+                irBuffer: ~ezConvIRBuffer,
+                mix: 1.0,
+                numInputChannels: 2,
+                numOutputChannels: 2
+            )
+        }.try { |error|
+            ("Impossible d'initialiser EZConv: " ++ error).warn;
+            nil
+        };
+        ~ezConv.tryPerform(\play);
+    } {
+        "Impossible d'initialiser EZConv : aucun buffer IR disponible.".warn;
+        ~ezConv = nil;
     };
 
     ~limiterSynth = Synth(\outputLimiter, [
