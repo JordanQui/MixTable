@@ -16,8 +16,9 @@ s.options.numInputBusChannels = 18;
 // Gestion des chemins
 // ======================
 ~projectRoot = thisProcess.nowExecutingPath.dirname;
-~ezConvIRRelativePath = "IRs/IR1.wav";
-~ezConvIRPath = (~projectRoot +/+ ~ezConvIRRelativePath).standardizePath;
+~convolutionIRRelativePath = "IRs/IR1.wav";
+~convolutionIRPath = (~projectRoot +/+ ~convolutionIRRelativePath).standardizePath;
+~convolutionFrameSize = 2048; // Taille de partition par défaut pour Convolution2 (puissance de 2)
 
 // ======================
 // Initialisation
