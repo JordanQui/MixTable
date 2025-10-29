@@ -5,6 +5,13 @@ SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0|
     Out.ar(hardwareOut, limited);
 }).add;
 
+// ================= Réverbération de secours =================
+SynthDef(\fallbackReverb, { |inBus = 0, outBus = 0, mix = 1.0, room = 0.6, damp = 0.5|
+    var inSig = In.ar(inBus, 2);
+    var wet = FreeVerb2.ar(inSig[0], inSig[1], mix, room, damp);
+    Out.ar(outBus, wet);
+}).add;
+
 // ================= Mixage et gestion des bus =================
 
 // Définitions des tranches d'entrée
@@ -75,8 +82,11 @@ SynthDef(\mixChannel, {
     [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     ~mixBus.tryPerform(\free);
     ~reverbBus.tryPerform(\free);
-    ~ezConv.tryPerform(\stop);
-    ~ezConv.tryPerform(\free);
+    if(~reverbNode.notNil) {
+        [\stop, \release, \free].do { |selector|
+            ~reverbNode.tryPerform(selector);
+        };
+    };
     ~ezConvIRBuffer.tryPerform(\free);
 
     ~channelSynths = nil;
@@ -85,7 +95,7 @@ SynthDef(\mixChannel, {
     ~reverbBus = nil;
     ~inputGroup = nil;
     ~outputGroup = nil;
-    ~ezConv = nil;
+    ~reverbNode = nil;
     ~ezConvIRBuffer = nil;
 };
 
@@ -153,10 +163,15 @@ SynthDef(\mixChannel, {
         ], target: ~inputGroup);
     };
 
-    ~ezConv.tryPerform(\stop);
-    ~ezConv.tryPerform(\free);
+    if(~reverbNode.notNil) {
+        [\stop, \release, \free].do { |selector|
+            ~reverbNode.tryPerform(selector);
+        };
+    };
+    ~reverbNode = nil;
+
     if(~ezConvIRBuffer.notNil) {
-        ~ezConv = {
+        ~reverbNode = {
             var ez = EZConv(
                 s,                 // server
                 ~ezConvIRBuffer,   // impulse response buffer
@@ -175,7 +190,18 @@ SynthDef(\mixChannel, {
         };
     } {
         "Impossible d'initialiser EZConv : aucun buffer IR disponible.".warn;
-        ~ezConv = nil;
+        ~reverbNode = nil;
+    };
+
+    if(~reverbNode.isNil) {
+        "Activation de la réverbération de secours (FreeVerb).".warn;
+        ~reverbNode = Synth(\fallbackReverb, [
+            \inBus, ~reverbBus,
+            \outBus, ~mixBus,
+            \mix, 1.0,
+            \room, 0.6,
+            \damp, 0.5
+        ], target: ~outputGroup, addAction: \addToHead);
     };
 
     ~limiterSynth = Synth(\outputLimiter, [
