@@ -5,11 +5,14 @@ SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0|
     Out.ar(hardwareOut, limited);
 }).add;
 
-// ================= Réverbération de secours =================
-SynthDef(\fallbackReverb, { |inBus = 0, outBus = 0, mix = 1.0, room = 0.6, damp = 0.5|
+// ================= Réverbération par convolution =================
+SynthDef(\convolutionReverb, {
+    |inBus = 0, outBus = 0, irBufL = -1, irBufR = -1, framesize = 2048, wet = 1|
     var inSig = In.ar(inBus, 2);
-    var wet = FreeVerb2.ar(inSig[0], inSig[1], mix, room, damp);
-    Out.ar(outBus, wet);
+    var left, right;
+    left = Convolution2.ar(inSig[0], irBufL, framesize: framesize) * wet;
+    right = Convolution2.ar(inSig[1], irBufR, framesize: framesize) * wet;
+    Out.ar(outBus, [left, right]);
 }).add;
 
 // ================= Mixage et gestion des bus =================
@@ -87,7 +90,11 @@ SynthDef(\mixChannel, {
             ~reverbNode.tryPerform(selector);
         };
     };
-    ~ezConvIRBuffer.tryPerform(\free);
+    if(~convolutionIRBufferRight === ~convolutionIRBufferLeft) {
+        ~convolutionIRBufferRight = nil;
+    };
+    ~convolutionIRBufferLeft.tryPerform(\free);
+    ~convolutionIRBufferRight.tryPerform(\free);
 
     ~channelSynths = nil;
     ~limiterSynth = nil;
@@ -96,11 +103,12 @@ SynthDef(\mixChannel, {
     ~inputGroup = nil;
     ~outputGroup = nil;
     ~reverbNode = nil;
-    ~ezConvIRBuffer = nil;
+    ~convolutionIRBufferLeft = nil;
+    ~convolutionIRBufferRight = nil;
 };
 
 ~setupAudio = {
-    var irPath;
+    var irPath, frameSize, soundFile, numChannels;
     // Nettoyage si nécessaire
     ~cleanupAudio.value;
 
@@ -110,16 +118,36 @@ SynthDef(\mixChannel, {
     ~mixBus = Bus.audio(s, 2);
     ~reverbBus = Bus.audio(s, 2);
 
-    irPath = ~ezConvIRPath ?? {
-        (~projectRoot +/+ (~ezConvIRRelativePath ?? { "IRs/IR1.wav" })).standardizePath;
+    irPath = ~convolutionIRPath ?? {
+        (~projectRoot +/+ (~convolutionIRRelativePath ?? { "IRs/IR1.wav" })).standardizePath;
     };
 
-    ~ezConvIRBuffer.tryPerform(\free);
     if(irPath.notNil and: { File.exists(irPath) }) {
-        ~ezConvIRBuffer = Buffer.readChannel(s, irPath, channels: [0, 1]);
+        soundFile = SoundFile.new;
+        if(soundFile.openRead(irPath)) {
+            numChannels = soundFile.numChannels;
+            soundFile.close;
+        } {
+            ("Impossible de lire le fichier d'IR : " ++ irPath).warn;
+            soundFile.close;
+            numChannels = 0;
+        };
+
+        if(numChannels > 0) {
+            ~convolutionIRBufferLeft = Buffer.readChannel(s, irPath, channels: [0]);
+            if(numChannels > 1) {
+                ~convolutionIRBufferRight = Buffer.readChannel(s, irPath, channels: [1]);
+            } {
+                ~convolutionIRBufferRight = ~convolutionIRBufferLeft;
+            };
+        } {
+            ~convolutionIRBufferLeft = nil;
+            ~convolutionIRBufferRight = nil;
+        };
     } {
         ("Impulse response introuvable: " ++ irPath).warn;
-        ~ezConvIRBuffer = nil;
+        ~convolutionIRBufferLeft = nil;
+        ~convolutionIRBufferRight = nil;
     };
     s.sync;
 
@@ -170,38 +198,25 @@ SynthDef(\mixChannel, {
     };
     ~reverbNode = nil;
 
-    if(~ezConvIRBuffer.notNil) {
-        ~reverbNode = {
-            var ez = EZConv(
-                s,                 // server
-                ~ezConvIRBuffer,   // impulse response buffer
-                1.0,               // wet mix
-                1.0,               // output amplitude
-                ~reverbBus,        // input bus
-                ~mixBus,           // output bus
-                2,                 // number of input channels
-                2                  // number of output channels
-            );
-            ez.play(target: ~outputGroup, addAction: \addToHead);
-            ez;
-        }.try { |error|
-            ("Impossible d'initialiser EZConv: " ++ error).warn;
-            nil
-        };
-    } {
-        "Impossible d'initialiser EZConv : aucun buffer IR disponible.".warn;
-        ~reverbNode = nil;
-    };
+    frameSize = (~convolutionFrameSize ?? { 2048 });
+    frameSize = frameSize.max(64).asInteger.nextPowerOfTwo;
 
-    if(~reverbNode.isNil) {
-        "Activation de la réverbération de secours (FreeVerb).".warn;
-        ~reverbNode = Synth(\fallbackReverb, [
-            \inBus, ~reverbBus,
-            \outBus, ~mixBus,
-            \mix, 1.0,
-            \room, 0.6,
-            \damp, 0.5
-        ], target: ~outputGroup, addAction: \addToHead);
+    if(~convolutionIRBufferLeft.notNil and: { ~convolutionIRBufferLeft.bufnum >= 0 }) {
+        ~reverbNode = {
+            Synth(\convolutionReverb, [
+                \inBus, ~reverbBus,
+                \outBus, ~mixBus,
+                \irBufL, ~convolutionIRBufferLeft.bufnum,
+                \irBufR, (~convolutionIRBufferRight ?? { ~convolutionIRBufferLeft }).bufnum,
+                \framesize, frameSize
+            ], target: ~outputGroup, addAction: \addToHead);
+        }.try({ |error|
+            ("Impossible d'initialiser la réverbération par convolution : " ++ error).warn;
+            nil
+        });
+    } {
+        "Impossible d'initialiser la réverbération par convolution : aucun buffer IR disponible.".warn;
+        ~reverbNode = nil;
     };
 
     ~limiterSynth = Synth(\outputLimiter, [
