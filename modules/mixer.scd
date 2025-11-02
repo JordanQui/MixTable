@@ -1,18 +1,23 @@
-// ================= Limiteur global =================
+// ================= Traitements globaux =================
 SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0|
     var inSig = In.ar(input, 2);
     var limited = Limiter.ar(inSig, 0.99, 0.01).tanh;
     Out.ar(hardwareOut, limited);
 }).add;
 
-// ================= Réverbération par convolution =================
-SynthDef(\convolutionReverb, {
-    |inBus = 0, outBus = 0, irBufL = -1, irBufR = -1, framesize = 2048, wet = 1|
-    var inSig = In.ar(inBus, 2);
-    var left, right;
-    left = Convolution2.ar(inSig[0], irBufL, framesize: framesize) * wet;
-    right = Convolution2.ar(inSig[1], irBufR, framesize: framesize) * wet;
-    Out.ar(outBus, [left, right]);
+SynthDef(\masterVSTInsert, { |inBus = 0, outBus = 0, bypass = 1|
+    var input = In.ar(inBus, 2);
+    var processed = VSTPlugin.ar(input, 2, id: \masterInsert);
+    var bypassMix = bypass.clip(0, 1);
+    var output = (processed * (1 - bypassMix)) + (input * bypassMix);
+    ReplaceOut.ar(outBus, output);
+}).add;
+
+SynthDef(\vstSendEffect, { |inBus = 0, outBus = 0, bypass = 1|
+    var input = In.ar(inBus, 2);
+    var processed = VSTPlugin.ar(input, 2, id: \sendEffect);
+    var active = 1 - bypass.clip(0, 1);
+    Out.ar(outBus, processed * active);
 }).add;
 
 // ================= Mixage et gestion des bus =================
@@ -72,7 +77,11 @@ SynthDef(\mixChannel, {
 );
 
 ~cleanupAudio = {
-    [~channelSynths, ~limiterSynth].do { |item|
+    [~masterVSTController, ~reverbVSTController].do { |controller|
+        controller.tryPerform(\close);
+    };
+
+    [~channelSynths, ~limiterSynth, ~masterInsertSynth, ~reverbVSTSynth].do { |item|
         if(item.notNil) {
             if(item.isKindOf(Array)) {
                 item.do(_.tryPerform(\free));
@@ -84,31 +93,24 @@ SynthDef(\mixChannel, {
 
     [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     ~mixBus.tryPerform(\free);
+    ~postMasterBus.tryPerform(\free);
     ~reverbBus.tryPerform(\free);
-    if(~reverbNode.notNil) {
-        [\stop, \release, \free].do { |selector|
-            ~reverbNode.tryPerform(selector);
-        };
-    };
-    if(~convolutionIRBufferRight === ~convolutionIRBufferLeft) {
-        ~convolutionIRBufferRight = nil;
-    };
-    ~convolutionIRBufferLeft.tryPerform(\free);
-    ~convolutionIRBufferRight.tryPerform(\free);
 
     ~channelSynths = nil;
     ~limiterSynth = nil;
+    ~masterInsertSynth = nil;
+    ~reverbVSTSynth = nil;
     ~mixBus = nil;
+    ~postMasterBus = nil;
     ~reverbBus = nil;
     ~inputGroup = nil;
     ~outputGroup = nil;
-    ~reverbNode = nil;
-    ~convolutionIRBufferLeft = nil;
-    ~convolutionIRBufferRight = nil;
+    ~masterVSTController = nil;
+    ~reverbVSTController = nil;
 };
 
 ~setupAudio = {
-    var irPath, frameSize, soundFile, numChannels;
+    var controllerClass;
     // Nettoyage si nécessaire
     ~cleanupAudio.value;
 
@@ -116,40 +118,8 @@ SynthDef(\mixChannel, {
     // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
     s.latency = 0.01;
     ~mixBus = Bus.audio(s, 2);
+    ~postMasterBus = Bus.audio(s, 2);
     ~reverbBus = Bus.audio(s, 2);
-
-    irPath = ~convolutionIRPath ?? {
-        (~projectRoot +/+ (~convolutionIRRelativePath ?? { "IRs/IR1.wav" })).standardizePath;
-    };
-
-    if(irPath.notNil and: { File.exists(irPath) }) {
-        soundFile = SoundFile.new;
-        if(soundFile.openRead(irPath)) {
-            numChannels = soundFile.numChannels;
-            soundFile.close;
-        } {
-            ("Impossible de lire le fichier d'IR : " ++ irPath).warn;
-            soundFile.close;
-            numChannels = 0;
-        };
-
-        if(numChannels > 0) {
-            ~convolutionIRBufferLeft = Buffer.readChannel(s, irPath, channels: [0]);
-            if(numChannels > 1) {
-                ~convolutionIRBufferRight = Buffer.readChannel(s, irPath, channels: [1]);
-            } {
-                ~convolutionIRBufferRight = ~convolutionIRBufferLeft;
-            };
-        } {
-            ~convolutionIRBufferLeft = nil;
-            ~convolutionIRBufferRight = nil;
-        };
-    } {
-        ("Impulse response introuvable: " ++ irPath).warn;
-        ~convolutionIRBufferLeft = nil;
-        ~convolutionIRBufferRight = nil;
-    };
-    s.sync;
 
     ~inputGroup = Group.head(s);
     ~outputGroup = Group.after(~inputGroup);
@@ -191,36 +161,66 @@ SynthDef(\mixChannel, {
         ], target: ~inputGroup);
     };
 
-    if(~reverbNode.notNil) {
-        [\stop, \release, \free].do { |selector|
-            ~reverbNode.tryPerform(selector);
-        };
-    };
-    ~reverbNode = nil;
+    controllerClass = \VSTPluginController.asClass;
 
-    frameSize = (~convolutionFrameSize ?? { 2048 });
-    frameSize = frameSize.max(64).asInteger.nextPowerOfTwo;
+    ~reverbVSTSynth = Synth(\vstSendEffect, [
+        \inBus, ~reverbBus,
+        \outBus, ~mixBus,
+        \bypass, 1
+    ], target: ~outputGroup, addAction: \addToHead);
 
-    if(~convolutionIRBufferLeft.notNil and: { ~convolutionIRBufferLeft.bufnum >= 0 }) {
-        ~reverbNode = {
-            Synth(\convolutionReverb, [
-                \inBus, ~reverbBus,
-                \outBus, ~mixBus,
-                \irBufL, ~convolutionIRBufferLeft.bufnum,
-                \irBufR, (~convolutionIRBufferRight ?? { ~convolutionIRBufferLeft }).bufnum,
-                \framesize, frameSize
-            ], target: ~outputGroup, addAction: \addToHead);
-        }.try({ |error|
-            ("Impossible d'initialiser la réverbération par convolution : " ++ error).warn;
-            nil
-        });
+    if(controllerClass.isNil) {
+        "Le quark VSTPlugin est requis pour utiliser Aaltoverb 2.".warn;
+        ~reverbVSTSynth.tryPerform(\set, \bypass, 1);
     } {
-        "Impossible d'initialiser la réverbération par convolution : aucun buffer IR disponible.".warn;
-        ~reverbNode = nil;
+        {
+            ~reverbVSTController = controllerClass.new(~reverbVSTSynth, \sendEffect);
+            ~reverbVSTController.open("Aaltoverb 2", action: { |ctl, success|
+                if(success) {
+                    ("VST 'Aaltoverb 2' chargé sur le départ auxiliaire.").postln;
+                    ~reverbVSTSynth.tryPerform(\set, \bypass, 0);
+                } {
+                    ("Impossible d'ouvrir le VST 'Aaltoverb 2'.").warn;
+                    ~reverbVSTSynth.tryPerform(\set, \bypass, 1);
+                };
+            });
+        }.try({ |error|
+            ("Erreur lors de l'initialisation du VST d'envoi : " ++ error).warn;
+            ~reverbVSTSynth.tryPerform(\set, \bypass, 1);
+            ~reverbVSTController = nil;
+        });
+    };
+
+    ~masterInsertSynth = Synth(\masterVSTInsert, [
+        \inBus, ~mixBus,
+        \outBus, ~postMasterBus,
+        \bypass, 1
+    ], target: ~outputGroup, addAction: \addToTail);
+
+    if(controllerClass.isNil) {
+        "Le quark VSTPlugin est requis pour charger Ozone Stabilizer.".warn;
+        ~masterInsertSynth.tryPerform(\set, \bypass, 1);
+    } {
+        {
+            ~masterVSTController = controllerClass.new(~masterInsertSynth, \masterInsert);
+            ~masterVSTController.open("Ozone Stabilizer", action: { |ctl, success|
+                if(success) {
+                    ("VST 'Ozone Stabilizer' chargé sur le master.").postln;
+                    ~masterInsertSynth.tryPerform(\set, \bypass, 0);
+                } {
+                    ("Impossible d'ouvrir le VST 'Ozone Stabilizer'.").warn;
+                    ~masterInsertSynth.tryPerform(\set, \bypass, 1);
+                };
+            });
+        }.try({ |error|
+            ("Erreur lors de l'initialisation du VST master : " ++ error).warn;
+            ~masterInsertSynth.tryPerform(\set, \bypass, 1);
+            ~masterVSTController = nil;
+        });
     };
 
     ~limiterSynth = Synth(\outputLimiter, [
-        \input, ~mixBus,
+        \input, ~postMasterBus,
         \hardwareOut, 0
     ], target: ~outputGroup, addAction: \addToTail);
 
