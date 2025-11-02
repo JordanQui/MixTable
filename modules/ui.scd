@@ -5,7 +5,6 @@
     var sectionColor = Color(0.18, 0.18, 0.22);
     var accentColor = Color(0.35, 0.65, 0.95);
     var mutedColor = Color(0.8, 0.25, 0.25);
-    var wideEqSpec = (band: \wide, name: "Wide", freqRange: [160, 8000], gainRange: [-24, 24], q: 1);
     var eqSpecs = [
         (band: \high, name: "High", freqRange: [5000, 16000], gainRange: [-60, 20], qRange: [0.2, 5]),
         (band: \mid2, name: "Mid 2", freqRange: [1200, 5000], gainRange: [-60, 20], qRange: [0.2, 10]),
@@ -30,7 +29,6 @@
 
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton, eqArea, eqControls;
-        var wideEqContainer, wideEqSlider, wideEqLabel;
 
         channelContainer = CompositeView(channelArea)
             .minWidth_(220)
@@ -55,24 +53,6 @@
         eqArea = CompositeView(channelContainer)
             .minHeight_(440)
             .background_(sectionColor);
-
-        wideEqContainer = CompositeView(eqArea)
-            .background_(panelColor);
-
-        wideEqLabel = StaticText(wideEqContainer)
-            .stringColor_(Color.white)
-            .background_(panelColor)
-            .string_("Wide Bell EQ");
-
-        wideEqSlider = Slider2D(wideEqContainer)
-            .minHeight_(110)
-            .background_(sectionColor)
-            .knobColor_(accentColor);
-
-        wideEqContainer.layout_(VLayout(4,
-            [wideEqLabel, 0],
-            [wideEqSlider, 1]
-        ).margins_(4));
 
         eqControls = eqSpecs.collect { |spec|
             var eqContainer, sliderRow, eqSlider, qSlider, qRange;
@@ -120,7 +100,6 @@
         };
 
         eqArea.layout_(VLayout(6,
-            [wideEqContainer, 0],
             *(eqControls.collect { |control|
                 [control[\container], 1]
             })
@@ -141,15 +120,8 @@
             var gainDB = state[\gainDB] ?? { 0 };
             var sliderValue = gainDB.linlin(-60, 20, 0, 1).clip(0, 1);
             var isMuted = state[\muted] ?? { 0 };
-            var wideState = state[\eq][wideEqSpec[\band]] ?? { ~eqDefaults[wideEqSpec[\band]].copy };
             gainSlider.value_(sliderValue);
             muteButton.value_(isMuted);
-
-            wideEqSlider.action = { |view|
-                var freq = view.x.linexp(0, 1, wideEqSpec[\freqRange][0], wideEqSpec[\freqRange][1]);
-                var gain = view.y.linlin(0, 1, wideEqSpec[\gainRange][0], wideEqSpec[\gainRange][1]);
-                ~setChannelEq.value(index, wideEqSpec[\band], freq, gain, wideEqSpec[\q]);
-            };
 
             gainSlider.action = { |sl|
                 var db = sl.value.linlin(0, 1, -60, 20);
@@ -171,11 +143,6 @@
                 control[\slider].setXY(x, y);
                 control[\qSlider].value_(qSliderValue);
             };
-
-            wideEqSlider.setXY(
-                wideState[\freq].linexp(wideEqSpec[\freqRange][0], wideEqSpec[\freqRange][1], 0, 1).clip(0, 1),
-                wideState[\gain].linlin(wideEqSpec[\gainRange][0], wideEqSpec[\gainRange][1], 0, 1).clip(0, 1)
-            );
         }.value;
 
         (container: channelContainer);
