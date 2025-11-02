@@ -312,11 +312,13 @@
         column;
     }.value(channelArea);
 
+    var layoutColumns = channelViews.collect { |control|
+        [control[\container], 1]
+    };
+    layoutColumns = layoutColumns.add([masterColumn, 0]);
+
     channelArea.layout_(HLayout(10,
-        *(channelViews.collect { |control|
-            [control[\container], 1]
-        }),
-        [masterColumn, 0]
+        *layoutColumns
     ).margins_(10));
 
     window.layout_(VLayout(10,
