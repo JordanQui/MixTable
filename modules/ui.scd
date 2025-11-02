@@ -30,7 +30,7 @@
 
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton, eqArea, eqControls;
-        var reverbLabel, reverbSlider, wideEqContainer, wideEqSlider, wideEqLabel;
+        var wideEqContainer, wideEqSlider, wideEqLabel;
 
         channelContainer = CompositeView(channelArea)
             .minWidth_(220)
@@ -38,17 +38,6 @@
 
         gainSection = CompositeView(channelContainer)
             .background_(sectionColor);
-
-        reverbLabel = StaticText(gainSection)
-            .stringColor_(Color.white)
-            .background_(sectionColor)
-            .string_("Reverb Mix (Dry/Wet)");
-
-        reverbSlider = Slider(gainSection)
-            .orientation_(\horizontal)
-            .background_(panelColor)
-            .knobColor_(accentColor)
-            .maxHeight_(24);
 
         gainSlider = Slider(gainSection)
             .orientation_(\vertical)
@@ -138,8 +127,6 @@
         ).margins_(4));
 
         gainSection.layout_(VLayout(6,
-            [reverbLabel, 0],
-            [reverbSlider, 0],
             [gainSlider, 1],
             [muteButton, 0]
         ).margins_(4));
@@ -154,20 +141,14 @@
             var gainDB = state[\gainDB] ?? { 0 };
             var sliderValue = gainDB.linlin(-60, 20, 0, 1).clip(0, 1);
             var isMuted = state[\muted] ?? { 0 };
-            var reverbMix = state[\reverbMix] ?? { 0 };
             var wideState = state[\eq][wideEqSpec[\band]] ?? { ~eqDefaults[wideEqSpec[\band]].copy };
             gainSlider.value_(sliderValue);
             muteButton.value_(isMuted);
-            reverbSlider.value_(reverbMix);
 
             wideEqSlider.action = { |view|
                 var freq = view.x.linexp(0, 1, wideEqSpec[\freqRange][0], wideEqSpec[\freqRange][1]);
                 var gain = view.y.linlin(0, 1, wideEqSpec[\gainRange][0], wideEqSpec[\gainRange][1]);
                 ~setChannelEq.value(index, wideEqSpec[\band], freq, gain, wideEqSpec[\q]);
-            };
-
-            reverbSlider.action = { |slider|
-                ~setChannelReverbMix.value(index, slider.value.clip(0, 1));
             };
 
             gainSlider.action = { |sl|

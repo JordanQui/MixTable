@@ -5,21 +5,6 @@ SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0|
     Out.ar(hardwareOut, limited);
 }).add;
 
-SynthDef(\masterVSTInsert, { |inBus = 0, outBus = 0, bypass = 1|
-    var input = In.ar(inBus, 2);
-    var processed = VSTPlugin.ar(input, 2, id: \masterInsert);
-    var bypassMix = bypass.clip(0, 1);
-    var output = (processed * (1 - bypassMix)) + (input * bypassMix);
-    ReplaceOut.ar(outBus, output);
-}).add;
-
-SynthDef(\vstSendEffect, { |inBus = 0, outBus = 0, bypass = 1|
-    var input = In.ar(inBus, 2);
-    var processed = VSTPlugin.ar(input, 2, id: \sendEffect);
-    var active = 1 - bypass.clip(0, 1);
-    Out.ar(outBus, processed * active);
-}).add;
-
 // ================= Mixage et gestion des bus =================
 
 // Définitions des tranches d'entrée
@@ -39,9 +24,8 @@ SynthDef(\mixChannel, {
     mid1Freq = 500, mid1RQ = 1, mid1Gain = 0,
     mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
     highFreq = 8000, highRQ = 1, highGain = 0,
-    wideFreq = 1200, wideRQ = 1, wideGain = 0,
-    revMix = 0, reverbSendBus = 0|
-    var stereo, mono, sig, muteLevel, dryLevel, sendLevel;
+    wideFreq = 1200, wideRQ = 1, wideGain = 0|
+    var stereo, mono, sig, muteLevel;
     stereo = SoundIn.ar([inA, inB]);
     mono = SoundIn.ar(inA) ! 2;
     sig = (stereo * (1 - isMono)) + (mono * isMono);
@@ -50,13 +34,9 @@ SynthDef(\mixChannel, {
     sig = BPeakEQ.ar(sig, mid2Freq, mid2RQ, mid2Gain.lag(0.1));
     sig = BHiShelf.ar(sig, highFreq, highRQ, highGain.lag(0.1));
     sig = BPeakEQ.ar(sig, wideFreq, wideRQ, wideGain.lag(0.1));
-    revMix = Lag.kr(revMix.clip(0, 1), 0.1);
     muteLevel = Lag.kr(1 - mute, 0.05);
     sig = sig * gainAmp * muteLevel;
-    dryLevel = sig * (1 - revMix);
-    sendLevel = sig * revMix;
-    Out.ar(outBus, dryLevel);
-    Out.ar(reverbSendBus, sendLevel);
+    Out.ar(outBus, sig);
 }).add;
 
 // Paramètres d'égalisation par défaut
@@ -76,86 +56,8 @@ SynthDef(\mixChannel, {
     wide: (freqKey: \wideFreq, gainKey: \wideGain, qKey: \wideRQ)
 );
 
-// Configuration des VST externes : ajustez ~vstSettings avant ~setupAudio
-// pour spécifier les chemins de recherche ou des emplacements précis.
-~vstSettings = ~vstSettings ?? { IdentityDictionary.new };
-~vstSettings[\searchPaths] = (~vstSettings[\searchPaths] ?? { [] }).as(Array);
-~vstSettings[\plugins] = (~vstSettings[\plugins] ?? { IdentityDictionary.new }).copy;
-
-{
-    var existing = ~vstSettings[\plugins][\reverb] ?? { IdentityDictionary.new };
-    ~vstSettings[\plugins][\reverb] = (
-        name: existing[\name] ?? { "Aaltoverb 2" },
-        path: existing[\path]
-    );
-}.value;
-
-{
-    var existing = ~vstSettings[\plugins][\master] ?? { IdentityDictionary.new };
-    ~vstSettings[\plugins][\master] = (
-        name: existing[\name] ?? { "Ozone Stabilizer" },
-        path: existing[\path]
-    );
-}.value;
-
-~registeredVstPaths = ~registeredVstPaths ?? { [] };
-
-~ensureVSTSearchPaths = {
-    var paths = ~vstSettings[\searchPaths].reject({ |path|
-        var str = path.tryPerform(\asString) ?? { "" };
-        str.trim.size == 0
-    });
-    var standardizedPaths = paths.collect({ |p| p.asString.standardizePath }).as(Array);
-    if(standardizedPaths != ~registeredVstPaths) {
-        standardizedPaths.do { |path|
-            VSTPlugin.search(path, useCache: true, wait: true, verbose: false);
-        };
-        if(standardizedPaths.notEmpty) {
-            ("Chemins VST enregistrés: " ++ standardizedPaths).postln;
-        };
-        ~registeredVstPaths = standardizedPaths;
-    };
-};
-
-~resolvePluginIdentifier = { |key|
-    var plugins = ~vstSettings[\plugins] ?? { IdentityDictionary.new };
-    var plugin = plugins[key];
-    var pluginPath, pluginName;
-    if(plugin.isNil) { ^nil };
-    pluginPath = plugin[\path];
-    if(pluginPath.notNil and: { pluginPath.asString.trim.size > 0 }) {
-        ^pluginPath.asString.standardizePath;
-    };
-    pluginName = plugin[\name];
-    if(pluginName.notNil and: { pluginName.asString.trim.size > 0 }) {
-        ^pluginName;
-    };
-    ^nil;
-};
-
-~describePlugin = { |key|
-    var plugins = ~vstSettings[\plugins] ?? { IdentityDictionary.new };
-    var plugin = plugins[key];
-    var pluginName, pluginPath;
-    if(plugin.isNil) { ^key.asString };
-    pluginName = plugin[\name];
-    if(pluginName.notNil and: { pluginName.asString.trim.size > 0 }) {
-        ^pluginName;
-    };
-    pluginPath = plugin[\path];
-    if(pluginPath.notNil and: { pluginPath.asString.trim.size > 0 }) {
-        var pathName = PathName(pluginPath);
-        ^(pathName.fileName ?? { pluginPath.asString.standardizePath });
-    };
-    ^key.asString;
-};
-
 ~cleanupAudio = {
-    [~masterVSTController, ~reverbVSTController].do { |controller|
-        controller.tryPerform(\close);
-    };
-
-    [~channelSynths, ~limiterSynth, ~masterInsertSynth, ~reverbVSTSynth].do { |item|
+    [~channelSynths, ~limiterSynth].do { |item|
         if(item.notNil) {
             if(item.isKindOf(Array)) {
                 item.do(_.tryPerform(\free));
@@ -167,24 +69,15 @@ SynthDef(\mixChannel, {
 
     [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
     ~mixBus.tryPerform(\free);
-    ~postMasterBus.tryPerform(\free);
-    ~reverbBus.tryPerform(\free);
 
     ~channelSynths = nil;
     ~limiterSynth = nil;
-    ~masterInsertSynth = nil;
-    ~reverbVSTSynth = nil;
     ~mixBus = nil;
-    ~postMasterBus = nil;
-    ~reverbBus = nil;
     ~inputGroup = nil;
     ~outputGroup = nil;
-    ~masterVSTController = nil;
-    ~reverbVSTController = nil;
 };
 
 ~setupAudio = {
-    var controllerClass;
     // Nettoyage si nécessaire
     ~cleanupAudio.value;
 
@@ -192,8 +85,6 @@ SynthDef(\mixChannel, {
     // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
     s.latency = 0.01;
     ~mixBus = Bus.audio(s, 2);
-    ~postMasterBus = Bus.audio(s, 2);
-    ~reverbBus = Bus.audio(s, 2);
 
     ~inputGroup = Group.head(s);
     ~outputGroup = Group.after(~inputGroup);
@@ -203,7 +94,7 @@ SynthDef(\mixChannel, {
         ~eqDefaults.keysValuesDo { |band, defaults|
             eqState[band] = defaults.copy;
         };
-        (gainDB: 0, eq: eqState, muted: 0, reverbMix: 0);
+        (gainDB: 0, eq: eqState, muted: 0);
     });
 
     ~channelSynths = ~mixInputs.collect { |cfg, index|
@@ -229,90 +120,11 @@ SynthDef(\mixChannel, {
             \wideFreq, state[\eq][\wide][\freq],
             \wideRQ, (state[\eq][\wide][\q] ?? { 1 }).reciprocal,
             \wideGain, state[\eq][\wide][\gain],
-            \revMix, state[\reverbMix],
-            \reverbSendBus, ~reverbBus,
             \mute, state[\muted]
         ], target: ~inputGroup);
     };
-
-    controllerClass = \VSTPluginController.asClass;
-
-    ~reverbVSTSynth = Synth(\vstSendEffect, [
-        \inBus, ~reverbBus,
-        \outBus, ~mixBus,
-        \bypass, 1
-    ], target: ~outputGroup, addAction: \addToHead);
-
-    if(controllerClass.isNil) {
-        "Le quark VSTPlugin est requis pour utiliser l'effet de reverb externe.".warn;
-        ~reverbVSTSynth.tryPerform(\set, \bypass, 1);
-    } {
-        {
-            var reverbIdentifier, reverbLabel;
-            ~ensureVSTSearchPaths.value;
-            reverbIdentifier = ~resolvePluginIdentifier.value(\reverb);
-            reverbLabel = ~describePlugin.value(\reverb);
-            if(reverbIdentifier.isNil) {
-                ("Aucun VST configuré pour l'envoi : " ++ reverbLabel).warn;
-                ~reverbVSTSynth.tryPerform(\set, \bypass, 1);
-            } {
-                ~reverbVSTController = controllerClass.new(~reverbVSTSynth, \sendEffect);
-                ~reverbVSTController.open(reverbIdentifier, action: { |ctl, success|
-                    if(success) {
-                        ("VST '" ++ reverbLabel ++ "' chargé sur le départ auxiliaire.").postln;
-                        ~reverbVSTSynth.tryPerform(\set, \bypass, 0);
-                    } {
-                        ("Impossible d'ouvrir le VST '" ++ reverbLabel ++ "'.").warn;
-                        ~reverbVSTSynth.tryPerform(\set, \bypass, 1);
-                    };
-                });
-            };
-        }.try({ |error|
-            ("Erreur lors de l'initialisation du VST d'envoi : " ++ error).warn;
-            ~reverbVSTSynth.tryPerform(\set, \bypass, 1);
-            ~reverbVSTController = nil;
-        });
-    };
-
-    ~masterInsertSynth = Synth(\masterVSTInsert, [
-        \inBus, ~mixBus,
-        \outBus, ~postMasterBus,
-        \bypass, 1
-    ], target: ~outputGroup, addAction: \addToTail);
-
-    if(controllerClass.isNil) {
-        "Le quark VSTPlugin est requis pour charger le traitement master externe.".warn;
-        ~masterInsertSynth.tryPerform(\set, \bypass, 1);
-    } {
-        {
-            var masterIdentifier, masterLabel;
-            ~ensureVSTSearchPaths.value;
-            masterIdentifier = ~resolvePluginIdentifier.value(\master);
-            masterLabel = ~describePlugin.value(\master);
-            if(masterIdentifier.isNil) {
-                ("Aucun VST configuré pour le master : " ++ masterLabel).warn;
-                ~masterInsertSynth.tryPerform(\set, \bypass, 1);
-            } {
-                ~masterVSTController = controllerClass.new(~masterInsertSynth, \masterInsert);
-                ~masterVSTController.open(masterIdentifier, action: { |ctl, success|
-                    if(success) {
-                        ("VST '" ++ masterLabel ++ "' chargé sur le master.").postln;
-                        ~masterInsertSynth.tryPerform(\set, \bypass, 0);
-                    } {
-                        ("Impossible d'ouvrir le VST '" ++ masterLabel ++ "'.").warn;
-                        ~masterInsertSynth.tryPerform(\set, \bypass, 1);
-                    };
-                });
-            };
-        }.try({ |error|
-            ("Erreur lors de l'initialisation du VST master : " ++ error).warn;
-            ~masterInsertSynth.tryPerform(\set, \bypass, 1);
-            ~masterVSTController = nil;
-        });
-    };
-
     ~limiterSynth = Synth(\outputLimiter, [
-        \input, ~postMasterBus,
+        \input, ~mixBus,
         \hardwareOut, 0
     ], target: ~outputGroup, addAction: \addToTail);
 
@@ -349,22 +161,13 @@ SynthDef(\mixChannel, {
         };
     };
 
-    ~setChannelReverbMix = { |index, mix|
-        if((index >= 0) and: { index < ~channelSynths.size }) {
-            var synth = ~channelSynths[index];
-            var mixValue = mix.clip(0, 1);
-            ~channelStates[index][\reverbMix] = mixValue;
-            synth.tryPerform(\set, \revMix, mixValue);
-        };
-    };
-
     ~getChannelState = { |index|
         ~channelStates[index] ?? {
             var eqState = IdentityDictionary.new;
             ~eqDefaults.keysValuesDo { |band, defaults|
                 eqState[band] = defaults.copy;
             };
-            (gainDB: 0, eq: eqState, muted: 0, reverbMix: 0);
+            (gainDB: 0, eq: eqState, muted: 0);
         };
     };
 
