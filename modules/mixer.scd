@@ -76,6 +76,80 @@ SynthDef(\mixChannel, {
     wide: (freqKey: \wideFreq, gainKey: \wideGain, qKey: \wideRQ)
 );
 
+// Configuration des VST externes : ajustez ~vstSettings avant ~setupAudio
+// pour spécifier les chemins de recherche ou des emplacements précis.
+~vstSettings = ~vstSettings ?? { IdentityDictionary.new };
+~vstSettings[\searchPaths] = (~vstSettings[\searchPaths] ?? { [] }).as(Array);
+~vstSettings[\plugins] = (~vstSettings[\plugins] ?? { IdentityDictionary.new }).copy;
+
+{
+    var existing = ~vstSettings[\plugins][\reverb] ?? { IdentityDictionary.new };
+    ~vstSettings[\plugins][\reverb] = (
+        name: existing[\name] ?? { "Aaltoverb 2" },
+        path: existing[\path]
+    );
+}.value;
+
+{
+    var existing = ~vstSettings[\plugins][\master] ?? { IdentityDictionary.new };
+    ~vstSettings[\plugins][\master] = (
+        name: existing[\name] ?? { "Ozone Stabilizer" },
+        path: existing[\path]
+    );
+}.value;
+
+~registeredVstPaths = ~registeredVstPaths ?? { [] };
+
+~ensureVSTSearchPaths = {
+    var paths = ~vstSettings[\searchPaths].reject({ |path|
+        var str = path.tryPerform(\asString) ?? { "" };
+        str.trim.size == 0
+    });
+    var standardizedPaths = paths.collect({ |p| p.asString.standardizePath }).as(Array);
+    if(standardizedPaths != ~registeredVstPaths) {
+        standardizedPaths.do { |path|
+            VSTPlugin.search(path, useCache: true, wait: true, verbose: false);
+        };
+        if(standardizedPaths.notEmpty) {
+            (~"Chemins VST enregistrés: " ++ standardizedPaths).postln;
+        };
+        ~registeredVstPaths = standardizedPaths;
+    };
+};
+
+~resolvePluginIdentifier = { |key|
+    var plugins = ~vstSettings[\plugins] ?? { IdentityDictionary.new };
+    var plugin = plugins[key];
+    var pluginPath, pluginName;
+    if(plugin.isNil) { ^nil };
+    pluginPath = plugin[\path];
+    if(pluginPath.notNil and: { pluginPath.asString.trim.size > 0 }) {
+        ^pluginPath.asString.standardizePath;
+    };
+    pluginName = plugin[\name];
+    if(pluginName.notNil and: { pluginName.asString.trim.size > 0 }) {
+        ^pluginName;
+    };
+    ^nil;
+};
+
+~describePlugin = { |key|
+    var plugins = ~vstSettings[\plugins] ?? { IdentityDictionary.new };
+    var plugin = plugins[key];
+    var pluginName, pluginPath;
+    if(plugin.isNil) { ^key.asString };
+    pluginName = plugin[\name];
+    if(pluginName.notNil and: { pluginName.asString.trim.size > 0 }) {
+        ^pluginName;
+    };
+    pluginPath = plugin[\path];
+    if(pluginPath.notNil and: { pluginPath.asString.trim.size > 0 }) {
+        var pathName = PathName(pluginPath);
+        ^(pathName.fileName ?? { pluginPath.asString.standardizePath });
+    };
+    ^key.asString;
+};
+
 ~cleanupAudio = {
     [~masterVSTController, ~reverbVSTController].do { |controller|
         controller.tryPerform(\close);
@@ -170,20 +244,29 @@ SynthDef(\mixChannel, {
     ], target: ~outputGroup, addAction: \addToHead);
 
     if(controllerClass.isNil) {
-        "Le quark VSTPlugin est requis pour utiliser Aaltoverb 2.".warn;
+        "Le quark VSTPlugin est requis pour utiliser l'effet de reverb externe.".warn;
         ~reverbVSTSynth.tryPerform(\set, \bypass, 1);
     } {
         {
-            ~reverbVSTController = controllerClass.new(~reverbVSTSynth, \sendEffect);
-            ~reverbVSTController.open("Aaltoverb 2", action: { |ctl, success|
-                if(success) {
-                    ("VST 'Aaltoverb 2' chargé sur le départ auxiliaire.").postln;
-                    ~reverbVSTSynth.tryPerform(\set, \bypass, 0);
-                } {
-                    ("Impossible d'ouvrir le VST 'Aaltoverb 2'.").warn;
-                    ~reverbVSTSynth.tryPerform(\set, \bypass, 1);
-                };
-            });
+            var reverbIdentifier, reverbLabel;
+            ~ensureVSTSearchPaths.value;
+            reverbIdentifier = ~resolvePluginIdentifier.value(\reverb);
+            reverbLabel = ~describePlugin.value(\reverb);
+            if(reverbIdentifier.isNil) {
+                ("Aucun VST configuré pour l'envoi : " ++ reverbLabel).warn;
+                ~reverbVSTSynth.tryPerform(\set, \bypass, 1);
+            } {
+                ~reverbVSTController = controllerClass.new(~reverbVSTSynth, \sendEffect);
+                ~reverbVSTController.open(reverbIdentifier, action: { |ctl, success|
+                    if(success) {
+                        ("VST '" ++ reverbLabel ++ "' chargé sur le départ auxiliaire.").postln;
+                        ~reverbVSTSynth.tryPerform(\set, \bypass, 0);
+                    } {
+                        ("Impossible d'ouvrir le VST '" ++ reverbLabel ++ "'.").warn;
+                        ~reverbVSTSynth.tryPerform(\set, \bypass, 1);
+                    };
+                });
+            };
         }.try({ |error|
             ("Erreur lors de l'initialisation du VST d'envoi : " ++ error).warn;
             ~reverbVSTSynth.tryPerform(\set, \bypass, 1);
@@ -198,20 +281,29 @@ SynthDef(\mixChannel, {
     ], target: ~outputGroup, addAction: \addToTail);
 
     if(controllerClass.isNil) {
-        "Le quark VSTPlugin est requis pour charger Ozone Stabilizer.".warn;
+        "Le quark VSTPlugin est requis pour charger le traitement master externe.".warn;
         ~masterInsertSynth.tryPerform(\set, \bypass, 1);
     } {
         {
-            ~masterVSTController = controllerClass.new(~masterInsertSynth, \masterInsert);
-            ~masterVSTController.open("Ozone Stabilizer", action: { |ctl, success|
-                if(success) {
-                    ("VST 'Ozone Stabilizer' chargé sur le master.").postln;
-                    ~masterInsertSynth.tryPerform(\set, \bypass, 0);
-                } {
-                    ("Impossible d'ouvrir le VST 'Ozone Stabilizer'.").warn;
-                    ~masterInsertSynth.tryPerform(\set, \bypass, 1);
-                };
-            });
+            var masterIdentifier, masterLabel;
+            ~ensureVSTSearchPaths.value;
+            masterIdentifier = ~resolvePluginIdentifier.value(\master);
+            masterLabel = ~describePlugin.value(\master);
+            if(masterIdentifier.isNil) {
+                ("Aucun VST configuré pour le master : " ++ masterLabel).warn;
+                ~masterInsertSynth.tryPerform(\set, \bypass, 1);
+            } {
+                ~masterVSTController = controllerClass.new(~masterInsertSynth, \masterInsert);
+                ~masterVSTController.open(masterIdentifier, action: { |ctl, success|
+                    if(success) {
+                        ("VST '" ++ masterLabel ++ "' chargé sur le master.").postln;
+                        ~masterInsertSynth.tryPerform(\set, \bypass, 0);
+                    } {
+                        ("Impossible d'ouvrir le VST '" ++ masterLabel ++ "'.").warn;
+                        ~masterInsertSynth.tryPerform(\set, \bypass, 1);
+                    };
+                });
+            };
         }.try({ |error|
             ("Erreur lors de l'initialisation du VST master : " ++ error).warn;
             ~masterInsertSynth.tryPerform(\set, \bypass, 1);
