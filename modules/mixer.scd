@@ -111,7 +111,7 @@ SynthDef(\mixChannel, {
             VSTPlugin.search(path, useCache: true, wait: true, verbose: false);
         };
         if(standardizedPaths.notEmpty) {
-            (~"Chemins VST enregistrés: " ++ standardizedPaths).postln;
+            ("Chemins VST enregistrés: " ++ standardizedPaths).postln;
         };
         ~registeredVstPaths = standardizedPaths;
     };
