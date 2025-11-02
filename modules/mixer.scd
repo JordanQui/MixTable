@@ -5,6 +5,28 @@ SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0|
     Out.ar(hardwareOut, limited);
 }).add;
 
+SynthDef(\globalReverb, {
+    |inBus = 0, outBus = 0,
+    mix = 0.2, room = 0.5, damp = 0.5|
+    var inSig = In.ar(inBus, 2);
+    var wet = FreeVerb.ar(inSig, mix.clip(0, 1), room.clip(0, 1), damp.clip(0, 1));
+    Out.ar(outBus, wet);
+}).add;
+
+SynthDef(\masterEQ, {
+    |inBus = 0, outBus = 0,
+    lowFreq = 120, lowRQ = 1, lowGain = 0,
+    mid1Freq = 500, mid1RQ = 1, mid1Gain = 0,
+    mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
+    highFreq = 8000, highRQ = 1, highGain = 0|
+    var sig = In.ar(inBus, 2);
+    sig = BLowShelf.ar(sig, lowFreq, lowRQ, lowGain.lag(0.1));
+    sig = BPeakEQ.ar(sig, mid1Freq, mid1RQ, mid1Gain.lag(0.1));
+    sig = BPeakEQ.ar(sig, mid2Freq, mid2RQ, mid2Gain.lag(0.1));
+    sig = BHiShelf.ar(sig, highFreq, highRQ, highGain.lag(0.1));
+    Out.ar(outBus, sig);
+}).add;
+
 // ================= Mixage et gestion des bus =================
 
 // Définitions des tranches d'entrée
@@ -18,8 +40,8 @@ SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0|
 
 // SynthDef pour chaque tranche d'entrée avec égalisation 4 bandes
 SynthDef(\mixChannel, {
-    |inA = 0, inB = 1, isMono = 0, outBus = 0,
-    gainAmp = 1, mute = 0,
+    |inA = 0, inB = 1, isMono = 0, outBus = 0, reverbBus = 0,
+    gainAmp = 1, mute = 0, sendLevel = 0,
     lowFreq = 120, lowRQ = 1, lowGain = 0,
     mid1Freq = 500, mid1RQ = 1, mid1Gain = 0,
     mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
@@ -37,6 +59,7 @@ SynthDef(\mixChannel, {
     muteLevel = Lag.kr(1 - mute, 0.05);
     sig = sig * gainAmp * muteLevel;
     Out.ar(outBus, sig);
+    Out.ar(reverbBus, sig * sendLevel.clip(0, 1));
 }).add;
 
 // Paramètres d'égalisation par défaut
@@ -57,7 +80,7 @@ SynthDef(\mixChannel, {
 );
 
 ~cleanupAudio = {
-    [~channelSynths, ~limiterSynth].do { |item|
+    [~channelSynths, ~limiterSynth, ~reverbSynth, ~masterEqSynth].do { |item|
         if(item.notNil) {
             if(item.isKindOf(Array)) {
                 item.do(_.tryPerform(\free));
@@ -67,13 +90,18 @@ SynthDef(\mixChannel, {
         };
     };
 
-    [~inputGroup, ~outputGroup].do(_.tryPerform(\free));
-    ~mixBus.tryPerform(\free);
+    [~inputGroup, ~fxGroup, ~outputGroup].do(_.tryPerform(\free));
+    [~mixBus, ~masterBus, ~reverbBus].do(_.tryPerform(\free));
 
     ~channelSynths = nil;
     ~limiterSynth = nil;
+    ~reverbSynth = nil;
+    ~masterEqSynth = nil;
     ~mixBus = nil;
+    ~masterBus = nil;
+    ~reverbBus = nil;
     ~inputGroup = nil;
+    ~fxGroup = nil;
     ~outputGroup = nil;
 };
 
@@ -85,17 +113,27 @@ SynthDef(\mixChannel, {
     // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
     s.latency = 0.01;
     ~mixBus = Bus.audio(s, 2);
+    ~masterBus = Bus.audio(s, 2);
+    ~reverbBus = Bus.audio(s, 2);
 
     ~inputGroup = Group.head(s);
-    ~outputGroup = Group.after(~inputGroup);
+    ~fxGroup = Group.after(~inputGroup);
+    ~outputGroup = Group.after(~fxGroup);
 
     ~channelStates = Array.fill(~mixInputs.size, {
         var eqState = IdentityDictionary.new;
         ~eqDefaults.keysValuesDo { |band, defaults|
             eqState[band] = defaults.copy;
         };
-        (gainDB: 0, eq: eqState, muted: 0);
+        (gainDB: 0, eq: eqState, muted: 0, send: 0);
     });
+
+    ~masterEqState = IdentityDictionary.new;
+    [\low, \mid1, \mid2, \high].do { |band|
+        ~masterEqState[band] = (~eqDefaults[band] ?? { IdentityDictionary.new }).copy;
+    };
+
+    ~reverbState = (mix: 0.2, room: 0.5, damp: 0.5);
 
     ~channelSynths = ~mixInputs.collect { |cfg, index|
         var state = ~channelStates[index];
@@ -104,6 +142,7 @@ SynthDef(\mixChannel, {
             \inB, cfg[\channels][1],
             \isMono, cfg[\isMono],
             \outBus, ~mixBus,
+            \reverbBus, ~reverbBus,
             \gainAmp, state[\gainDB].dbamp,
             \lowFreq, state[\eq][\low][\freq],
             \lowRQ, (state[\eq][\low][\q] ?? { 1 }).reciprocal,
@@ -120,11 +159,37 @@ SynthDef(\mixChannel, {
             \wideFreq, state[\eq][\wide][\freq],
             \wideRQ, (state[\eq][\wide][\q] ?? { 1 }).reciprocal,
             \wideGain, state[\eq][\wide][\gain],
-            \mute, state[\muted]
+            \mute, state[\muted],
+            \sendLevel, state[\send]
         ], target: ~inputGroup);
     };
+
+    ~reverbSynth = Synth(\globalReverb, [
+        \inBus, ~reverbBus,
+        \outBus, ~mixBus,
+        \mix, ~reverbState[\mix],
+        \room, ~reverbState[\room],
+        \damp, ~reverbState[\damp]
+    ], target: ~fxGroup);
+
+    ~masterEqSynth = Synth(\masterEQ, [
+        \inBus, ~mixBus,
+        \outBus, ~masterBus,
+        \lowFreq, ~masterEqState[\low][\freq],
+        \lowRQ, (~masterEqState[\low][\q] ?? { 1 }).reciprocal,
+        \lowGain, ~masterEqState[\low][\gain],
+        \mid1Freq, ~masterEqState[\mid1][\freq],
+        \mid1RQ, (~masterEqState[\mid1][\q] ?? { 1 }).reciprocal,
+        \mid1Gain, ~masterEqState[\mid1][\gain],
+        \mid2Freq, ~masterEqState[\mid2][\freq],
+        \mid2RQ, (~masterEqState[\mid2][\q] ?? { 1 }).reciprocal,
+        \mid2Gain, ~masterEqState[\mid2][\gain],
+        \highFreq, ~masterEqState[\high][\freq],
+        \highRQ, (~masterEqState[\high][\q] ?? { 1 }).reciprocal,
+        \highGain, ~masterEqState[\high][\gain]
+    ], target: ~outputGroup, addAction: \addToHead);
     ~limiterSynth = Synth(\outputLimiter, [
-        \input, ~mixBus,
+        \input, ~masterBus,
         \hardwareOut, 0
     ], target: ~outputGroup, addAction: \addToTail);
 
@@ -145,6 +210,15 @@ SynthDef(\mixChannel, {
         };
     };
 
+    ~setChannelSend = { |index, send|
+        if((index >= 0) and: { index < ~channelSynths.size }) {
+            var synth = ~channelSynths[index];
+            var level = send.clip(0, 1);
+            ~channelStates[index][\send] = level;
+            synth.tryPerform(\set, \sendLevel, level);
+        };
+    };
+
     ~setChannelEq = { |index, band, freq, gain, q|
         if((index >= 0) and: { index < ~channelSynths.size }) {
             var params = ~eqParamMap[band];
@@ -161,14 +235,50 @@ SynthDef(\mixChannel, {
         };
     };
 
+    ~setMasterEq = { |band, freq, gain, q|
+        var params = ~eqParamMap[band];
+        if(params.notNil) {
+            var rq = q.reciprocal;
+            ~masterEqState[band] = (freq: freq, gain: gain, q: q);
+            ~masterEqSynth.tryPerform(\set,
+                params[\freqKey], freq,
+                params[\gainKey], gain,
+                params[\qKey], rq
+            );
+        };
+    };
+
+    ~setReverbParams = { |mix = nil, room = nil, damp = nil|
+        if(mix.notNil) {
+            ~reverbState[\mix] = mix.clip(0, 1);
+            ~reverbSynth.tryPerform(\set, \mix, ~reverbState[\mix]);
+        };
+        if(room.notNil) {
+            ~reverbState[\room] = room.clip(0, 1);
+            ~reverbSynth.tryPerform(\set, \room, ~reverbState[\room]);
+        };
+        if(damp.notNil) {
+            ~reverbState[\damp] = damp.clip(0, 1);
+            ~reverbSynth.tryPerform(\set, \damp, ~reverbState[\damp]);
+        };
+    };
+
     ~getChannelState = { |index|
         ~channelStates[index] ?? {
             var eqState = IdentityDictionary.new;
             ~eqDefaults.keysValuesDo { |band, defaults|
                 eqState[band] = defaults.copy;
             };
-            (gainDB: 0, eq: eqState, muted: 0);
+            (gainDB: 0, eq: eqState, muted: 0, send: 0);
         };
+    };
+
+    ~getMasterEqState = {
+        ~masterEqState;
+    };
+
+    ~getReverbState = {
+        ~reverbState;
     };
 
     CmdPeriod.doOnce({ ~cleanupAudio.value });
