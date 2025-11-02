@@ -1,5 +1,5 @@
 ~createUI = {
-    var window, channelArea, channelViews, masterColumn;
+    var window, channelArea, channelViews, masterColumn, layoutColumns;
     var windowColor = Color(0.08, 0.08, 0.1);
     var panelColor = Color(0.12, 0.12, 0.16);
     var sectionColor = Color(0.18, 0.18, 0.22);
@@ -312,7 +312,7 @@
         column;
     }.value(channelArea);
 
-    var layoutColumns = channelViews.collect { |control|
+    layoutColumns = channelViews.collect { |control|
         [control[\container], 1]
     };
     layoutColumns = layoutColumns.add([masterColumn, 0]);
