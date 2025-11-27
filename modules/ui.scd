@@ -29,7 +29,8 @@
 
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton;
-        var channelBottom, eqArea, sendSection, sendSlider, eqControls;
+        var channelBottom, eqArea, eqControls, chorusSection, auxSection, auxSendSlider;
+        var chorusControls;
 
         channelContainer = CompositeView(channelArea)
             .minWidth_(220)
@@ -54,19 +55,20 @@
         channelBottom = CompositeView(channelContainer)
             .background_(sectionColor);
 
-        eqArea = CompositeView(channelBottom)
-            .minHeight_(440)
+        chorusSection = CompositeView(channelBottom)
             .background_(sectionColor);
 
-        sendSection = CompositeView(channelBottom)
-            .background_(panelColor)
-            .minWidth_(40);
+        auxSection = CompositeView(channelBottom)
+            .background_(sectionColor);
 
-        sendSlider = Slider(sendSection)
-            .orientation_(\vertical)
-            .minHeight_(440)
+        auxSendSlider = Slider(auxSection)
+            .orientation_(\horizontal)
             .background_(sectionColor)
             .knobColor_(accentColor);
+
+        eqArea = CompositeView(channelBottom)
+            .minHeight_(400)
+            .background_(sectionColor);
 
         eqControls = eqSpecs.collect { |spec|
             var eqContainer, sliderRow, eqSlider, qSlider, qRange;
@@ -113,24 +115,66 @@
             (container: eqContainer, slider: eqSlider, qSlider: qSlider, qRange: qRange, spec: spec);
         };
 
+        chorusControls = [
+            (key: \dryWet, label: "Chorus Dry/Wet"),
+            (key: \depth, label: "Chorus Depth"),
+            (key: \feedback, label: "Chorus Feedback")
+        ].collect { |spec|
+            var container, slider, labelView;
+            container = CompositeView(chorusSection)
+                .background_(panelColor);
+            labelView = StaticText(container)
+                .string_(spec[\label])
+                .align_(\center)
+                .stringColor_(Color.white);
+            slider = Slider(container)
+                .orientation_(\horizontal)
+                .background_(sectionColor)
+                .knobColor_(accentColor);
+            container.layout_(VLayout(4,
+                [labelView, 0],
+                [slider, 0]
+            ).margins_(4));
+            slider.action = { |sl|
+                var value = sl.value.clip(0, 1);
+                switch(spec[\key],
+                    \dryWet, { ~setChannelChorus.value(index, value, nil, nil); },
+                    \depth, { ~setChannelChorus.value(index, nil, value, nil); },
+                    \feedback, { ~setChannelChorus.value(index, nil, nil, value.linlin(0, 1, 0, 0.95)); }
+                );
+            };
+            (container: container, slider: slider, spec: spec);
+        };
+
+        chorusSection.layout_(VLayout(6,
+            *(chorusControls.collect { |control|
+                [control[\container], 0]
+            })
+        ).margins_(4));
+
         eqArea.layout_(VLayout(6,
             *(eqControls.collect { |control|
                 [control[\container], 1]
             })
         ).margins_(4));
 
+        auxSection.layout_(VLayout(4,
+            [StaticText(auxSection)
+                .string_("Send 3/4")
+                .align_(\center)
+                .stringColor_(Color.white), 0],
+            [auxSendSlider, 0]
+        ).margins_(6));
+
         gainSection.layout_(VLayout(6,
             [gainSlider, 1],
             [muteButton, 0]
         ).margins_(4));
 
-        sendSection.layout_(VLayout(6,
-            [sendSlider, 1]
-        ).margins_(4));
-
-        channelBottom.layout_(HLayout(6,
-            [eqArea, 1],
-            [sendSection, 0]
+        channelBottom.layout_(VLayout(6,
+            [chorusSection, 0],
+            [auxSection, 0],
+            [eqArea, 1]
         ).margins_(4));
 
         channelContainer.layout_(VLayout(8,
@@ -143,10 +187,11 @@
             var gainDB = state[\gainDB] ?? { 0 };
             var sliderValue = gainDB.linlin(-60, 20, 0, 1).clip(0, 1);
             var isMuted = state[\muted] ?? { 0 };
-            var sendValue = (state[\send] ?? { 0 }).clip(0, 1);
+            var auxValue = (state[\aux] ?? { 0 }).clip(0, 1);
+            var chorusState = state[\chorus] ?? { (dryWet: 0, depth: 0.5, feedback: 0) };
             gainSlider.value_(sliderValue);
             muteButton.value_(isMuted);
-            sendSlider.value_(sendValue);
+            auxSendSlider.value_(auxValue);
 
             gainSlider.action = { |sl|
                 var db = sl.value.linlin(0, 1, -60, 20);
@@ -158,8 +203,8 @@
                 ~setChannelMute.value(index, muted);
             };
 
-            sendSlider.action = { |sl|
-                ~setChannelSend.value(index, sl.value.clip(0, 1));
+            auxSendSlider.action = { |sl|
+                ~setChannelAux.value(index, sl.value.clip(0, 1));
             };
 
             eqControls.do { |control|
@@ -172,15 +217,26 @@
                 control[\slider].setXY(x, y);
                 control[\qSlider].value_(qSliderValue);
             };
+
+            chorusControls.do { |control|
+                var value = chorusState[control[\spec][\key]] ?? { 0 };
+                control[\slider].value_(
+                    if(control[\spec][\key] == \feedback,
+                        { value.linlin(0, 0.95, 0, 1).clip(0, 1) },
+                        { value.clip(0, 1) }
+                    )
+                );
+            };
         }.value;
 
         (container: channelContainer);
     };
 
     masterColumn = { |area|
-        var column, masterEqArea, masterEqControls, reverbSection, reverbSliders;
+        var column, masterEqArea, masterEqControls, returnSection, returnSliders;
         var masterState = ~getMasterEqState.value;
-        var reverbState = ~getReverbState.value;
+        var stereoInputState = ~getStereoInputState.value;
+        var reverbReturnState = ~getReverbReturnState.value;
 
         column = CompositeView(area)
             .minWidth_(220)
@@ -240,17 +296,16 @@
             })
         ).margins_(4));
 
-        reverbSection = CompositeView(column)
+        returnSection = CompositeView(column)
             .background_(sectionColor);
 
-        reverbSliders = [
-            (key: \mix, label: "Mix"),
-            (key: \room, label: "Room"),
-            (key: \damp, label: "Damp")
+        returnSliders = [
+            (key: \stereoInput, label: "In 18/19", action: { |value| ~setStereoInputGain.value(value); }),
+            (key: \reverbReturn, label: "Reverb Return", action: { |value| ~setReverbReturnGain.value(value); })
         ].collect { |spec|
             var sliderContainer, sliderView, labelView;
 
-            sliderContainer = CompositeView(reverbSection)
+            sliderContainer = CompositeView(returnSection)
                 .background_(panelColor);
 
             labelView = StaticText(sliderContainer)
@@ -269,26 +324,22 @@
             ).margins_(4));
 
             sliderView.action = { |sl|
-                var value = sl.value.clip(0, 1);
-                switch(spec[\key],
-                    \mix, { ~setReverbParams.value(value, nil, nil); },
-                    \room, { ~setReverbParams.value(nil, value, nil); },
-                    \damp, { ~setReverbParams.value(nil, nil, value); }
-                );
+                var db = sl.value.linlin(0, 1, -60, 20);
+                spec[\action].value(db);
             };
 
             (container: sliderContainer, slider: sliderView, spec: spec);
         };
 
-        reverbSection.layout_(VLayout(6,
-            *(reverbSliders.collect { |slider|
+        returnSection.layout_(VLayout(6,
+            *(returnSliders.collect { |slider|
                 [slider[\container], 0]
             })
         ).margins_(6));
 
         column.layout_(VLayout(8,
             [masterEqArea, 2],
-            [reverbSection, 1]
+            [returnSection, 1]
         ).margins_(6));
 
         {
@@ -303,9 +354,11 @@
                 control[\qSlider].value_(qSliderValue);
             };
 
-            reverbSliders.do { |slider|
-                var stateValue = reverbState[slider[\spec][\key]] ?? { 0 };
-                slider[\slider].value_(stateValue.clip(0, 1));
+            returnSliders.do { |slider|
+                var db = case
+                { slider[\spec][\key] == \stereoInput } { stereoInputState[\gainDB] ?? { 0 } }
+                { slider[\spec][\key] == \reverbReturn } { reverbReturnState[\gainDB] ?? { 0 } };
+                slider[\slider].value_(db.linlin(-60, 20, 0, 1).clip(0, 1));
             };
         }.value;
 
