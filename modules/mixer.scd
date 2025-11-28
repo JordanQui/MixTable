@@ -204,8 +204,8 @@ SynthDef(\mixChannel, {
         \highGain, ~masterEqState[\high][\gain]
     ], target: ~outputGroup, addAction: \addToHead);
     ~stereoInputSynth = Synth(\stereoInput, [
-        \inA, 17,
-        \inB, 18,
+        \inA, 18,
+        \inB, 19,
         \outBus, ~mixBus,
         \gainDB, ~stereoInputState[\gainDB]
     ], target: ~inputGroup, addAction: \addToHead);
