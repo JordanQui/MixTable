@@ -26,7 +26,7 @@ SynthDef(\stereoInput, {
 }).add;
 
 SynthDef(\reverbReturn, {
-    |inA = 0, inB = 1, outBus = 0, gainDB = 0|
+    |inA = 8, inB = 9, outBus = 0, gainDB = 0|
     var sig = SoundIn.ar([inA, inB]) * gainDB.dbamp;
     Out.ar(outBus, sig);
 }).add;
@@ -59,7 +59,7 @@ SynthDef(\mixChannel, {
     modRate = [0.23, 0.27];
     modDepth = depth.clip(0, 1) * 0.02 + 0.001;
     modSig = SinOsc.kr(modRate, 0, modDepth, 0.005).clip(0.001, 0.03);
-    chorusWet = DelayC.ar(sig + (sig * feedback.clip(0, 0.95)), 0.05, modSig);
+    chorusWet = DelayC.ar(sig + (sig * feedback.clip(0, 1.2)), 0.05, modSig);
     sig = XFade2.ar(sig, chorusWet, (dryWet.clip(0, 1) * 2) - 1);
     sig = BLowShelf.ar(sig, lowFreq, lowRQ, lowGain.lag(0.1));
     sig = BPeakEQ.ar(sig, mid1Freq, mid1RQ, mid1Gain.lag(0.1));
@@ -120,6 +120,9 @@ SynthDef(\mixChannel, {
 ~setupAudio = {
     // Nettoyage si nécessaire
     ~cleanupAudio.value;
+
+    // Limite de feedback pour le chorus
+    var maxChorusFeedback = 1.2;
 
     // S'assurer que toutes les définitions de synthés précédemment envoyées
     // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
@@ -209,8 +212,8 @@ SynthDef(\mixChannel, {
         \gainDB, ~stereoInputState[\gainDB]
     ], target: ~inputGroup, addAction: \addToHead);
     ~reverbReturnSynth = Synth(\reverbReturn, [
-        \inA, 17,
-        \inB, 18,
+        \inA, 8,
+        \inB, 9,
         \outBus, ~mixBus,
         \gainDB, ~reverbReturnState[\gainDB]
     ], target: ~inputGroup, addAction: \addToHead);
@@ -262,7 +265,7 @@ SynthDef(\mixChannel, {
                 synth.tryPerform(\set, \depth, state[\depth]);
             };
             if(feedback.notNil) {
-                state[\feedback] = feedback.clip(0, 0.95);
+                state[\feedback] = feedback.clip(0, maxChorusFeedback);
                 synth.tryPerform(\set, \feedback, state[\feedback]);
             };
             ~channelStates[index][\chorus] = state;
