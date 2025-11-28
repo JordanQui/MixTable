@@ -351,8 +351,7 @@
         returnSection.layout_(VLayout(6,
             *(returnSliders.collect { |slider|
                 [slider[\container], 0]
-            }),
-            [recordContainer, 0]
+            } ++ [[recordContainer, 0]])
         ).margins_(6));
 
         column.layout_(VLayout(8,
