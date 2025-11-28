@@ -378,7 +378,7 @@
                 slider[\slider].value_(db.linlin(-60, 20, 0, 1).clip(0, 1));
             };
 
-            if(s.recording) {
+            if(s.isRecording) {
                 recordButton.value_(1);
             };
         }.value;
