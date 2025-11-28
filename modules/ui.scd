@@ -291,7 +291,7 @@
             .background_(sectionColor);
 
         returnSliders = [
-            (key: \stereoInput, label: "In 18/19", action: { |value| ~setStereoInputGain.value(value); }),
+            (key: \stereoInput, label: "In 19/20", action: { |value| ~setStereoInputGain.value(value); }),
             (key: \reverbReturn, label: "Reverb Return", action: { |value| ~setReverbReturnGain.value(value); })
         ].collect { |spec|
             var sliderContainer, sliderView, labelView;
