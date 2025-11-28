@@ -119,10 +119,8 @@ SynthDef(\mixChannel, {
 
 ~setupAudio = {
     // Nettoyage si nécessaire
-    ~cleanupAudio.value;
-
-    // Limite de feedback pour le chorus
     var maxChorusFeedback = 1.2;
+    ~cleanupAudio.value;
 
     // S'assurer que toutes les définitions de synthés précédemment envoyées
     // ont bien été traitées par le serveur avant d'instancier de nouveaux nodes.
