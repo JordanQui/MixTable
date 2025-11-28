@@ -115,35 +115,26 @@
             (container: eqContainer, slider: eqSlider, qSlider: qSlider, qRange: qRange, spec: spec);
         };
 
-        chorusControls = [
-            (key: \dryWet, label: "Chorus Dry/Wet"),
-            (key: \depth, label: "Chorus Depth"),
-            (key: \feedback, label: "Chorus Feedback")
-        ].collect { |spec|
-            var container, slider, labelView;
+        chorusControls = [\dryWet, \depth, \feedback].collect { |key|
+            var container, slider;
             container = CompositeView(chorusSection)
                 .background_(panelColor);
-            labelView = StaticText(container)
-                .string_(spec[\label])
-                .align_(\center)
-                .stringColor_(Color.white);
             slider = Slider(container)
                 .orientation_(\horizontal)
                 .background_(sectionColor)
                 .knobColor_(accentColor);
             container.layout_(VLayout(4,
-                [labelView, 0],
                 [slider, 0]
             ).margins_(4));
             slider.action = { |sl|
                 var value = sl.value.clip(0, 1);
-                switch(spec[\key],
+                switch(key,
                     \dryWet, { ~setChannelChorus.value(index, value, nil, nil); },
                     \depth, { ~setChannelChorus.value(index, nil, value, nil); },
-                    \feedback, { ~setChannelChorus.value(index, nil, nil, value.linlin(0, 1, 0, 0.95)); }
+                    \feedback, { ~setChannelChorus.value(index, nil, nil, value.linlin(0, 1, 0, 1.2)); }
                 );
             };
-            (container: container, slider: slider, spec: spec);
+            (container: container, slider: slider, spec: (key: key));
         };
 
         chorusSection.layout_(VLayout(6,
@@ -222,7 +213,7 @@
                 var value = chorusState[control[\spec][\key]] ?? { 0 };
                 control[\slider].value_(
                     if(control[\spec][\key] == \feedback,
-                        { value.linlin(0, 0.95, 0, 1).clip(0, 1) },
+                        { value.linlin(0, 1.2, 0, 1).clip(0, 1) },
                         { value.clip(0, 1) }
                     )
                 );
@@ -233,7 +224,7 @@
     };
 
     masterColumn = { |area|
-        var column, masterEqArea, masterEqControls, returnSection, returnSliders;
+        var column, masterEqArea, masterEqControls, returnSection, returnSliders, recordButton, recordContainer;
         var masterState = ~getMasterEqState.value;
         var stereoInputState = ~getStereoInputState.value;
         var reverbReturnState = ~getReverbReturnState.value;
@@ -331,10 +322,37 @@
             (container: sliderContainer, slider: sliderView, spec: spec);
         };
 
+        recordButton = Button(returnSection)
+            .states_([
+                ["Record", Color.white, Color(0.3, 0.3, 0.35)],
+                ["Stop", Color.white, mutedColor]
+            ])
+            .maxWidth_(90);
+
+        recordButton.action = { |btn|
+            if(btn.value == 1) {
+                s.prepareForRecord;
+                s.record;
+            } {
+                s.stopRecording;
+            };
+        };
+
+        recordContainer = CompositeView(returnSection)
+            .background_(panelColor);
+
+        recordContainer.layout_(HLayout(6,
+            [StaticText(recordContainer)
+                .string_(" ")
+                .stringColor_(Color.clear), 1],
+            [recordButton, 0]
+        ).margins_(4));
+
         returnSection.layout_(VLayout(6,
             *(returnSliders.collect { |slider|
                 [slider[\container], 0]
-            })
+            }),
+            [recordContainer, 0]
         ).margins_(6));
 
         column.layout_(VLayout(8,
@@ -359,6 +377,10 @@
                 { slider[\spec][\key] == \stereoInput } { stereoInputState[\gainDB] ?? { 0 } }
                 { slider[\spec][\key] == \reverbReturn } { reverbReturnState[\gainDB] ?? { 0 } };
                 slider[\slider].value_(db.linlin(-60, 20, 0, 1).clip(0, 1));
+            };
+
+            if(s.recording) {
+                recordButton.value_(1);
             };
         }.value;
 
