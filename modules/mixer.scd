@@ -206,7 +206,7 @@ SynthDef(\mixChannel, {
     ~stereoInputSynth = Synth(\stereoInput, [
         \inA, 18,
         \inB, 19,
-        \outBus, ~mixBus,
+        \outBus, ~masterBus,
         \gainDB, ~stereoInputState[\gainDB]
     ], target: ~inputGroup, addAction: \addToHead);
     ~reverbReturnSynth = Synth(\reverbReturn, [
