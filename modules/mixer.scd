@@ -58,12 +58,9 @@ SynthDef(\mixChannel, {
     stereo = SoundIn.ar([inA, inB]);
     mono = SoundIn.ar(inA) ! 2;
     sig = (stereo * (1 - isMono)) + (mono * isMono);
-    chorusDelay = (0.006 + (SinOsc.kr([0.32, 0.26, 0.19, 0.41], [0, 0.5pi, pi, 1.5pi])
-        * (chorusDepth.clip(0, 1) * 0.012))).clip(0.001, 0.03);
-    chorusWet = Splay.ar(Array.fill(4, { |i|
-        DelayC.ar(sig, 0.05, chorusDelay[i])
-    }), spread: 0.8, level: 0.65);
-    chorusWet = LeakDC.ar(sig + (chorusWet * (chorusFeedback.clip(0, 1) * 0.88)));
+    chorusDelay = SinOsc.kr([0.23, 0.27], 0, chorusDepth.clip(0, 1) * 0.02 + 0.001, 0.005)
+        .clip(0.001, 0.03);
+    chorusWet = DelayC.ar(sig + (sig * chorusFeedback.clip(0, 1.2)), 0.05, chorusDelay);
     sig = XFade2.ar(sig, chorusWet, (chorusDryWet.clip(0, 1) * 2) - 1);
     greyholeWet = Greyhole.ar(
         sig,
