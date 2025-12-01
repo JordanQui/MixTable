@@ -59,7 +59,7 @@ SynthDef(\mixChannel, {
     sig = (stereo * (1 - isMono)) + (mono * isMono);
     greyholeWet = Greyhole.ar(
         sig,
-        ghDelayTime.clip(0.01, 5),
+        ghDelayTime.clip(0.001, 5),
         ghDamp.clip(0, 1),
         ghSize.clip(0, 3),
         ghDiff.clip(0, 1),
@@ -126,7 +126,7 @@ SynthDef(\mixChannel, {
 
 ~greyholeRanges = (
     dryWet: [0, 1],
-    delayTime: [0.01, 5],
+    delayTime: [0.001, 5],
     damp: [0, 1],
     size: [0, 3],
     diff: [0, 1],

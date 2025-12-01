@@ -13,7 +13,7 @@
     ];
     var greyholeSpecs = [
         (key: \dryWet, label: "Mix", range: [0, 1]),
-        (key: \delayTime, label: "Delay", range: [0.01, 5]),
+        (key: \delayTime, label: "Delay", range: [0.001, 5]),
         (key: \damp, label: "Damp", range: [0, 1]),
         (key: \size, label: "Size", range: [0, 3]),
         (key: \diff, label: "Diff", range: [0, 1]),
