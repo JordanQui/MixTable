@@ -358,8 +358,9 @@
             .background_(sectionColor);
 
         returnSliders = [
-            (key: \stereoInput, label: "In 19/20", action: { |value| ~setStereoInputGain.value(value); }),
-            (key: \reverbReturn, label: "Reverb Return", action: { |value| ~setReverbReturnGain.value(value); })
+            (key: \stereoInput, label: "In 19/20", mode: \db, action: { |value| ~setStereoInputGain.value(value); }),
+            (key: \reverbReturn, label: "Reverb Return", mode: \db, action: { |value| ~setReverbReturnGain.value(value); }),
+            (key: \reverbMix, label: "Reverb Mix", mode: \linear, range: [0, 1], action: { |value| ~setReverbReturnMix.value(value); })
         ].collect { |spec|
             var sliderContainer, sliderView, labelView;
 
@@ -382,8 +383,13 @@
             ).margins_(4));
 
             sliderView.action = { |sl|
-                var db = sl.value.linlin(0, 1, -60, 20);
-                spec[\action].value(db);
+                var value = case
+                    { spec[\mode] == \db } { sl.value.linlin(0, 1, -60, 20) }
+                    { spec[\mode] == \linear } {
+                        var range = spec[\range] ?? { [0, 1] };
+                        sl.value.linlin(0, 1, range[0], range[1]);
+                    };
+                spec[\action].value(value);
             };
 
             (container: sliderContainer, slider: sliderView, spec: spec);
@@ -439,10 +445,18 @@
             };
 
             returnSliders.do { |slider|
-                var db = case
+                var value = case
                 { slider[\spec][\key] == \stereoInput } { stereoInputState[\gainDB] ?? { 0 } }
-                { slider[\spec][\key] == \reverbReturn } { reverbReturnState[\gainDB] ?? { 0 } };
-                slider[\slider].value_(db.linlin(-60, 20, 0, 1).clip(0, 1));
+                { slider[\spec][\key] == \reverbReturn } { reverbReturnState[\gainDB] ?? { 0 } }
+                { slider[\spec][\key] == \reverbMix } { reverbReturnState[\mix] ?? { 0.35 } };
+
+                slider[\slider].value_(case
+                    { slider[\spec][\mode] == \db } { value.linlin(-60, 20, 0, 1).clip(0, 1) }
+                    { slider[\spec][\mode] == \linear } {
+                        var range = slider[\spec][\range] ?? { [0, 1] };
+                        value.linlin(range[0], range[1], 0, 1).clip(0, 1);
+                    }
+                );
             };
 
             if(s.isRecording) {

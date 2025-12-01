@@ -26,8 +26,23 @@ SynthDef(\stereoInput, {
 }).add;
 
 SynthDef(\reverbReturn, {
-    |inA = 8, inB = 9, outBus = 0, gainDB = 0|
-    var sig = SoundIn.ar([inA, inB]) * gainDB.dbamp;
+    |inBus = 0, outBus = 0, gainDB = 0, mix = 0.35,
+    delayTime = 1.5, damp = 0.2, size = 1, diff = 0.7,
+    feedback = 0.35, modDepth = 0.1, modFreq = 1, earlyDiff = 0.7, spread = 0.8|
+    var sig = In.ar(inBus, 2);
+    var wet = Greyhole.ar(
+        sig,
+        delayTime.clip(0.01, 5),
+        damp.clip(0, 1),
+        size.clip(0, 3),
+        diff.clip(0, 1),
+        feedback.clip(0, 0.99),
+        modDepth.clip(0, 1),
+        modFreq.clip(0, 10),
+        earlyDiff.clip(0, 1),
+        spread.clip(0, 1)
+    );
+    sig = XFade2.ar(sig, wet, (mix.clip(0, 1) * 2) - 1) * gainDB.dbamp;
     Out.ar(outBus, sig);
 }).add;
 
@@ -214,7 +229,7 @@ SynthDef(\mixChannel, {
     };
 
     ~stereoInputState = (gainDB: 0);
-    ~reverbReturnState = (gainDB: 0);
+    ~reverbReturnState = (gainDB: 0, mix: 0.35);
 
     ~channelSynths = ~mixInputs.collect { |cfg, index|
         var state = ~channelStates[index];
@@ -281,11 +296,11 @@ SynthDef(\mixChannel, {
         \gainDB, ~stereoInputState[\gainDB]
     ], target: ~inputGroup, addAction: \addToHead);
     ~reverbReturnSynth = Synth(\reverbReturn, [
-        \inA, 8,
-        \inB, 9,
+        \inBus, ~auxBus,
         \outBus, ~mixBus,
-        \gainDB, ~reverbReturnState[\gainDB]
-    ], target: ~inputGroup, addAction: \addToHead);
+        \gainDB, ~reverbReturnState[\gainDB],
+        \mix, ~reverbReturnState[\mix]
+    ], target: ~fxGroup, addAction: \addToTail);
     ~auxOutSynth = SynthDef(\auxOutput, {
         |inBus = 0|
         Out.ar(2, In.ar(inBus, 2));
@@ -390,6 +405,12 @@ SynthDef(\mixChannel, {
     ~setReverbReturnGain = { |gainDB|
         ~reverbReturnState[\gainDB] = gainDB;
         ~reverbReturnSynth.tryPerform(\set, \gainDB, gainDB);
+    };
+
+    ~setReverbReturnMix = { |mix|
+        var clipped = mix.clip(0, 1);
+        ~reverbReturnState[\mix] = clipped;
+        ~reverbReturnSynth.tryPerform(\set, \mix, clipped);
     };
 
     ~getChannelState = { |index|
