@@ -164,7 +164,7 @@
                 .background_(sectionColor);
             columnView.layout_(VLayout(2,
                 *(columnControls.collect { |control| [control[\container], 0] })
-            ).margins_(2));
+            ).margins_(0));
             columnView;
         };
 
@@ -197,17 +197,17 @@
                 .background_(sectionColor);
             columnView.layout_(VLayout(2,
                 *(columnControls.collect { |control| [control[\container], 0] })
-            ).margins_(2));
+            ).margins_(0));
             columnView;
         };
 
         greyholeSection.layout_(HLayout(6,
             *(greyholeColumns.collect { |column| [column, 1] })
-        ).margins_(4));
+        ).margins_(0));
 
         chorusSection.layout_(HLayout(6,
             *(chorusColumns.collect { |column| [column, 1] })
-        ).margins_(4));
+        ).margins_(0));
 
         eqArea.layout_(VLayout(6,
             *(eqControls.collect { |control|
