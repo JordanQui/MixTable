@@ -25,7 +25,7 @@
     ];
 
     if(~mixWindow.notNil) { ~mixWindow.close };
-    window = Window("MixTable - 5 voies", Rect(100, 100, 1380, 560));
+    window = Window("MixTable - 5 voies", Rect(100, 100, 1380, 700));
     if(window.respondsTo(\resizable_)) {
         window.resizable_(true);
     } {
@@ -42,7 +42,7 @@
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton;
         var channelBottom, eqArea, eqControls, greyholeSection, auxSection, auxSendSlider;
-        var greyholeControls;
+        var greyholeControls, greyholeColumns;
 
         channelContainer = CompositeView(channelArea)
             .minWidth_(220)
@@ -79,7 +79,7 @@
             .knobColor_(accentColor);
 
         eqArea = CompositeView(channelBottom)
-            .minHeight_(400)
+            .minHeight_(320)
             .background_(sectionColor);
 
         eqControls = eqSpecs.collect { |spec|
@@ -131,18 +131,18 @@
             var container, slider, labelView;
             container = CompositeView(greyholeSection)
                 .background_(panelColor);
-            labelView = StaticText(container)
-                .string_(spec[\label])
-                .align_(\center)
-                .stringColor_(Color.white)
-                .font_(Font(Font.defaultSansFace, 9));
             slider = Slider(container)
                 .orientation_(\horizontal)
                 .background_(sectionColor)
                 .knobColor_(accentColor);
-            container.layout_(VLayout(2,
-                [labelView, 0],
-                [slider, 0]
+            labelView = StaticText(container)
+                .string_(spec[\label])
+                .align_(\left)
+                .stringColor_(Color.white)
+                .font_(Font(Font.defaultSansFace, 9));
+            container.layout_(HLayout(4,
+                [slider, 1],
+                [labelView, 0]
             ).margins_(4));
             slider.action = { |sl|
                 var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
@@ -151,10 +151,17 @@
             (container: container, slider: slider, spec: spec);
         };
 
-        greyholeSection.layout_(VLayout(6,
-            *(greyholeControls.collect { |control|
-                [control[\container], 0]
-            })
+        greyholeColumns = greyholeControls.clump(5).collect { |columnControls|
+            var columnView = CompositeView(greyholeSection)
+                .background_(sectionColor);
+            columnView.layout_(VLayout(4,
+                *(columnControls.collect { |control| [control[\container], 0] })
+            ).margins_(4));
+            columnView;
+        };
+
+        greyholeSection.layout_(HLayout(6,
+            *(greyholeColumns.collect { |column| [column, 1] })
         ).margins_(4));
 
         eqArea.layout_(VLayout(6,
