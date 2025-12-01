@@ -23,6 +23,11 @@
         (key: \earlyDiff, label: "Early", range: [0, 1]),
         (key: \spread, label: "Spread", range: [0, 1])
     ];
+    var chorusSpecs = [
+        (key: \chorusDepth, label: "Depth", range: [0, 1]),
+        (key: \chorusDryWet, label: "Mix", range: [0, 1]),
+        (key: \chorusFeedback, label: "Feedbk", range: [0, 1])
+    ];
 
     if(~mixWindow.notNil) { ~mixWindow.close };
     window = Window("MixTable - 5 voies", Rect(100, 100, 1380, 700));
@@ -42,7 +47,7 @@
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton;
         var channelBottom, eqArea, eqControls, greyholeSection, auxSection, auxSendSlider;
-        var greyholeControls, greyholeColumns;
+        var greyholeControls, greyholeColumns, chorusSection, chorusControls, chorusColumns;
 
         channelContainer = CompositeView(channelArea)
             .minWidth_(220)
@@ -68,6 +73,9 @@
             .background_(sectionColor);
 
         greyholeSection = CompositeView(channelBottom)
+            .background_(sectionColor);
+
+        chorusSection = CompositeView(channelBottom)
             .background_(sectionColor);
 
         auxSection = CompositeView(channelBottom)
@@ -160,8 +168,45 @@
             columnView;
         };
 
+        chorusControls = chorusSpecs.collect { |spec|
+            var container, slider, labelView;
+            container = CompositeView(chorusSection)
+                .background_(panelColor);
+            slider = Slider(container)
+                .orientation_(\horizontal)
+                .background_(sectionColor)
+                .knobColor_(accentColor);
+            labelView = StaticText(container)
+                .string_(spec[\label])
+                .align_(\left)
+                .stringColor_(Color.white)
+                .font_(Font(Font.defaultSansFace, 9));
+            container.layout_(HLayout(4,
+                [slider, 1],
+                [labelView, 0]
+            ).margins_(2));
+            slider.action = { |sl|
+                var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
+                ~setChannelChorus.value(index, spec[\key], value);
+            };
+            (container: container, slider: slider, spec: spec);
+        };
+
+        chorusColumns = chorusControls.clump(2).collect { |columnControls|
+            var columnView = CompositeView(chorusSection)
+                .background_(sectionColor);
+            columnView.layout_(VLayout(2,
+                *(columnControls.collect { |control| [control[\container], 0] })
+            ).margins_(2));
+            columnView;
+        };
+
         greyholeSection.layout_(HLayout(6,
             *(greyholeColumns.collect { |column| [column, 1] })
+        ).margins_(4));
+
+        chorusSection.layout_(HLayout(6,
+            *(chorusColumns.collect { |column| [column, 1] })
         ).margins_(4));
 
         eqArea.layout_(VLayout(6,
@@ -181,11 +226,12 @@
 
         channelBottom.layout_(VLayout(6,
             [greyholeSection, 0],
+            [chorusSection, 0],
             [auxSection, 0],
             [eqArea, 1]
         ).margins_(4));
 
-        channelContainer.layout_(VLayout(8,
+        channelContainer.layout_(VLayout(2,
             [gainSection, 1],
             [channelBottom, 3]
         ).margins_(6));
@@ -227,6 +273,13 @@
             };
 
             greyholeControls.do { |control|
+                var range = control[\spec][\range];
+                var value = greyholeState[control[\spec][\key]] ?? { range[0] };
+                var normalized = value.linlin(range[0], range[1], 0, 1).clip(0, 1);
+                control[\slider].value_(normalized);
+            };
+
+            chorusControls.do { |control|
                 var range = control[\spec][\range];
                 var value = greyholeState[control[\spec][\key]] ?? { range[0] };
                 var normalized = value.linlin(range[0], range[1], 0, 1).clip(0, 1);
