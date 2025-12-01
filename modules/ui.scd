@@ -143,7 +143,7 @@
             container.layout_(HLayout(4,
                 [slider, 1],
                 [labelView, 0]
-            ).margins_(4));
+            ).margins_(2));
             slider.action = { |sl|
                 var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
                 ~setChannelGreyhole.value(index, spec[\key], value);
@@ -154,9 +154,9 @@
         greyholeColumns = greyholeControls.clump(5).collect { |columnControls|
             var columnView = CompositeView(greyholeSection)
                 .background_(sectionColor);
-            columnView.layout_(VLayout(4,
+            columnView.layout_(VLayout(2,
                 *(columnControls.collect { |control| [control[\container], 0] })
-            ).margins_(4));
+            ).margins_(2));
             columnView;
         };
 
@@ -170,13 +170,9 @@
             })
         ).margins_(4));
 
-        auxSection.layout_(VLayout(4,
-            [StaticText(auxSection)
-                .string_("Send 3/4")
-                .align_(\center)
-                .stringColor_(Color.white), 0],
+        auxSection.layout_(VLayout(2,
             [auxSendSlider, 0]
-        ).margins_(6));
+        ).margins_(2));
 
         gainSection.layout_(VLayout(6,
             [gainSlider, 1],
