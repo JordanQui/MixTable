@@ -11,6 +11,18 @@
         (band: \mid1, name: "Mid 1", freqRange: [250, 1200], gainRange: [-60, 20], qRange: [0.2, 10]),
         (band: \low,  name: "Low",  freqRange: [40, 250],   gainRange: [-60, 20], qRange: [0.2, 5])
     ];
+    var greyholeSpecs = [
+        (key: \dryWet, label: "Mix", range: [0, 1]),
+        (key: \delayTime, label: "Delay", range: [0.01, 5]),
+        (key: \damp, label: "Damp", range: [0, 1]),
+        (key: \size, label: "Size", range: [0, 3]),
+        (key: \diff, label: "Diff", range: [0, 1]),
+        (key: \feedback, label: "Feedbk", range: [0, 0.99]),
+        (key: \modDepth, label: "ModDepth", range: [0, 1]),
+        (key: \modFreq, label: "ModFreq", range: [0, 10]),
+        (key: \earlyDiff, label: "Early", range: [0, 1]),
+        (key: \spread, label: "Spread", range: [0, 1])
+    ];
 
     if(~mixWindow.notNil) { ~mixWindow.close };
     window = Window("MixTable - 5 voies", Rect(100, 100, 1380, 560));
@@ -29,8 +41,8 @@
 
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton;
-        var channelBottom, eqArea, eqControls, chorusSection, auxSection, auxSendSlider;
-        var chorusControls;
+        var channelBottom, eqArea, eqControls, greyholeSection, auxSection, auxSendSlider;
+        var greyholeControls;
 
         channelContainer = CompositeView(channelArea)
             .minWidth_(220)
@@ -55,7 +67,7 @@
         channelBottom = CompositeView(channelContainer)
             .background_(sectionColor);
 
-        chorusSection = CompositeView(channelBottom)
+        greyholeSection = CompositeView(channelBottom)
             .background_(sectionColor);
 
         auxSection = CompositeView(channelBottom)
@@ -115,30 +127,32 @@
             (container: eqContainer, slider: eqSlider, qSlider: qSlider, qRange: qRange, spec: spec);
         };
 
-        chorusControls = [\dryWet, \depth, \feedback].collect { |key|
-            var container, slider;
-            container = CompositeView(chorusSection)
+        greyholeControls = greyholeSpecs.collect { |spec|
+            var container, slider, labelView;
+            container = CompositeView(greyholeSection)
                 .background_(panelColor);
+            labelView = StaticText(container)
+                .string_(spec[\label])
+                .align_(\center)
+                .stringColor_(Color.white)
+                .font_(Font(Font.defaultSansFace, 9));
             slider = Slider(container)
                 .orientation_(\horizontal)
                 .background_(sectionColor)
                 .knobColor_(accentColor);
-            container.layout_(VLayout(4,
+            container.layout_(VLayout(2,
+                [labelView, 0],
                 [slider, 0]
             ).margins_(4));
             slider.action = { |sl|
-                var value = sl.value.clip(0, 1);
-                switch(key,
-                    \dryWet, { ~setChannelChorus.value(index, value, nil, nil); },
-                    \depth, { ~setChannelChorus.value(index, nil, value, nil); },
-                    \feedback, { ~setChannelChorus.value(index, nil, nil, value.linlin(0, 1, 0, 1.2)); }
-                );
+                var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
+                ~setChannelGreyhole.value(index, spec[\key], value);
             };
-            (container: container, slider: slider, spec: (key: key));
+            (container: container, slider: slider, spec: spec);
         };
 
-        chorusSection.layout_(VLayout(6,
-            *(chorusControls.collect { |control|
+        greyholeSection.layout_(VLayout(6,
+            *(greyholeControls.collect { |control|
                 [control[\container], 0]
             })
         ).margins_(4));
@@ -163,7 +177,7 @@
         ).margins_(4));
 
         channelBottom.layout_(VLayout(6,
-            [chorusSection, 0],
+            [greyholeSection, 0],
             [auxSection, 0],
             [eqArea, 1]
         ).margins_(4));
@@ -179,7 +193,7 @@
             var sliderValue = gainDB.linlin(-60, 20, 0, 1).clip(0, 1);
             var isMuted = state[\muted] ?? { 0 };
             var auxValue = (state[\aux] ?? { 0 }).clip(0, 1);
-            var chorusState = state[\chorus] ?? { (dryWet: 0, depth: 0.5, feedback: 0) };
+            var greyholeState = state[\greyhole] ?? { ~greyholeDefaults.copy };
             gainSlider.value_(sliderValue);
             muteButton.value_(isMuted);
             auxSendSlider.value_(auxValue);
@@ -209,14 +223,11 @@
                 control[\qSlider].value_(qSliderValue);
             };
 
-            chorusControls.do { |control|
-                var value = chorusState[control[\spec][\key]] ?? { 0 };
-                control[\slider].value_(
-                    if(control[\spec][\key] == \feedback,
-                        { value.linlin(0, 1.2, 0, 1).clip(0, 1) },
-                        { value.clip(0, 1) }
-                    )
-                );
+            greyholeControls.do { |control|
+                var range = control[\spec][\range];
+                var value = greyholeState[control[\spec][\key]] ?? { range[0] };
+                var normalized = value.linlin(range[0], range[1], 0, 1).clip(0, 1);
+                control[\slider].value_(normalized);
             };
         }.value;
 
