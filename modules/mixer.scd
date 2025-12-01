@@ -46,6 +46,7 @@ SynthDef(\reverbReturn, {
 SynthDef(\mixChannel, {
     |inA = 0, inB = 1, isMono = 0, outBus = 0, auxBus = 0,
     gainAmp = 1, mute = 0, auxLevel = 0,
+    chorusDepth = 0.01, chorusDryWet = 0, chorusFeedback = 0.2,
     dryWet = 0, ghDelayTime = 1.5, ghDamp = 0.2, ghSize = 1, ghDiff = 0.7,
     ghFeedback = 0.3, ghModDepth = 0.1, ghModFreq = 1, ghEarlyDiff = 0.7, ghSpread = 0.8,
     lowFreq = 120, lowRQ = 1, lowGain = 0,
@@ -53,10 +54,14 @@ SynthDef(\mixChannel, {
     mid2Freq = 2000, mid2RQ = 1, mid2Gain = 0,
     highFreq = 8000, highRQ = 1, highGain = 0,
     wideFreq = 1200, wideRQ = 1, wideGain = 0|
-    var stereo, mono, sig, muteLevel, greyholeWet, postFader;
+    var stereo, mono, sig, muteLevel, chorusDelay, chorusWet, greyholeWet, postFader;
     stereo = SoundIn.ar([inA, inB]);
     mono = SoundIn.ar(inA) ! 2;
     sig = (stereo * (1 - isMono)) + (mono * isMono);
+    chorusDelay = (0.02 + (SinOsc.kr(0.25 ! 2) * (chorusDepth.clip(0, 1) * 0.02))).clip(0, 0.05);
+    chorusWet = DelayC.ar(sig, 0.05, chorusDelay);
+    chorusWet = LeakDC.ar(sig + (chorusWet * (chorusFeedback.clip(0, 1) * 0.9)));
+    sig = XFade2.ar(sig, chorusWet, (chorusDryWet.clip(0, 1) * 2) - 1);
     greyholeWet = Greyhole.ar(
         sig,
         ghDelayTime.clip(0.01, 5),
@@ -100,6 +105,9 @@ SynthDef(\mixChannel, {
 
 ~greyholeDefaults = (
     dryWet: 0,
+    chorusDepth: 0.01,
+    chorusDryWet: 0,
+    chorusFeedback: 0.2,
     delayTime: 1.5,
     damp: 0.2,
     size: 1,
@@ -113,6 +121,9 @@ SynthDef(\mixChannel, {
 
 ~greyholeParamMap = (
     dryWet: \dryWet,
+    chorusDepth: \chorusDepth,
+    chorusDryWet: \chorusDryWet,
+    chorusFeedback: \chorusFeedback,
     delayTime: \ghDelayTime,
     damp: \ghDamp,
     size: \ghSize,
@@ -126,6 +137,9 @@ SynthDef(\mixChannel, {
 
 ~greyholeRanges = (
     dryWet: [0, 1],
+    chorusDepth: [0, 1],
+    chorusDryWet: [0, 1],
+    chorusFeedback: [0, 1],
     delayTime: [0.01, 5],
     damp: [0, 1],
     size: [0, 3],
@@ -211,6 +225,9 @@ SynthDef(\mixChannel, {
             \outBus, ~mixBus,
             \auxBus, ~auxBus,
             \gainAmp, state[\gainDB].dbamp,
+            \chorusDepth, state[\greyhole][\chorusDepth],
+            \chorusDryWet, state[\greyhole][\chorusDryWet],
+            \chorusFeedback, state[\greyhole][\chorusFeedback],
             \dryWet, state[\greyhole][\dryWet],
             \ghDelayTime, state[\greyhole][\delayTime],
             \ghDamp, state[\greyhole][\damp],
@@ -305,6 +322,22 @@ SynthDef(\mixChannel, {
     };
 
     ~setChannelGreyhole = { |index, param, value|
+        if((index >= 0) and: { index < ~channelSynths.size }) {
+            var synth = ~channelSynths[index];
+            var state = ~channelStates[index][\greyhole];
+            var key = ~greyholeParamMap[param];
+            var range = ~greyholeRanges[param];
+
+            if(key.notNil and: { range.notNil } and: { value.notNil }) {
+                var clipped = value.clip(range[0], range[1]);
+                state[param] = clipped;
+                synth.tryPerform(\set, key, clipped);
+                ~channelStates[index][\greyhole] = state;
+            };
+        };
+    };
+
+    ~setChannelChorus = { |index, param, value|
         if((index >= 0) and: { index < ~channelSynths.size }) {
             var synth = ~channelSynths[index];
             var state = ~channelStates[index][\greyhole];
