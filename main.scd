@@ -10,7 +10,7 @@ s.latency = 0.01;
 s.options.outDevice = "SoundCard";
 s.options.inDevice = "SoundCard";
 s.options.numOutputBusChannels = 4;
-s.options.numInputBusChannels = 20;
+s.options.numInputBusChannels = 22;
 
 // ======================
 // Initialisation
