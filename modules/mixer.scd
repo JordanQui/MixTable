@@ -38,6 +38,7 @@ SynthDef(\reverbReturn, {
     (label: "3 / 4",  channels: [2, 3],   isMono: 0),
     (label: "5 / 6",  channels: [4, 5],   isMono: 0),
     (label: "7 / 8",  channels: [6, 7],   isMono: 0),
+    (label: "21 / 22", channels: [20, 21], isMono: 0),
     (label: "15 / 16", channels: [14, 15], isMono: 0),
     (label: "17 / 18", channels: [16, 17], isMono: 0)
 ];
