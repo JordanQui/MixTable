@@ -291,10 +291,11 @@
     };
 
     masterColumn = { |area|
-        var column, masterEqArea, masterEqControls, returnSection, returnSliders, recordButton, recordContainer;
+        var column, masterEqArea, masterEqControls, returnSection, returnSliders, recordButton, recordContainer, altSendToggle;
         var masterState = ~getMasterEqState.value;
         var stereoInputState = ~getStereoInputState.value;
         var reverbReturnState = ~getReverbReturnState.value;
+        var masterAltSendState = ~getMasterAltSend.value;
 
         column = CompositeView(area)
             .minWidth_(220)
@@ -405,13 +406,22 @@
             };
         };
 
+        altSendToggle = Button(returnSection)
+            .states_([
+                ["69/70 Off", Color.white, Color(0.25, 0.25, 0.3)],
+                ["69/70 On", Color.white, accentColor]
+            ])
+            .maxWidth_(90);
+
+        altSendToggle.action = { |btn|
+            ~setMasterAltSend.value(btn.value);
+        };
+
         recordContainer = CompositeView(returnSection)
             .background_(panelColor);
 
         recordContainer.layout_(HLayout(6,
-            [StaticText(recordContainer)
-                .string_(" ")
-                .stringColor_(Color.clear), 1],
+            [altSendToggle, 0],
             [recordButton, 0]
         ).margins_(4));
 
@@ -448,6 +458,7 @@
             if(s.isRecording) {
                 recordButton.value_(1);
             };
+            altSendToggle.value_(masterAltSendState ?? { 0 });
         }.value;
 
         column;

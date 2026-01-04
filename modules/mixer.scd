@@ -1,8 +1,9 @@
 // ================= Traitements globaux =================
-SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0|
+SynthDef(\outputLimiter, { |input = 0, hardwareOut = 0, altHardwareOut = 0, altSend = 0|
     var inSig = In.ar(input, 2);
     var limited = Limiter.ar(inSig, 0.99, 0.01).tanh;
     Out.ar(hardwareOut, limited);
+    Out.ar(altHardwareOut, limited * altSend.clip(0, 1));
 }).add;
 
 SynthDef(\masterEQ, {
@@ -216,6 +217,7 @@ SynthDef(\mixChannel, {
 
     ~stereoInputState = (gainDB: 0);
     ~reverbReturnState = (gainDB: 0);
+    ~masterAltSendEnabled = ~masterAltSendEnabled ?? { 0 };
 
     ~channelSynths = ~mixInputs.collect { |cfg, index|
         var state = ~channelStates[index];
@@ -293,8 +295,16 @@ SynthDef(\mixChannel, {
     }).play(target: ~outputGroup, args: [\inBus, ~auxBus], addAction: \addToTail);
     ~limiterSynth = Synth(\outputLimiter, [
         \input, ~masterBus,
-        \hardwareOut, 0
+        \hardwareOut, 0,
+        \altHardwareOut, 68,
+        \altSend, ~masterAltSendEnabled
     ], target: ~outputGroup, addAction: \addToTail);
+
+    ~setMasterAltSend = { |enabled|
+        var sendValue = enabled.clip(0, 1);
+        ~masterAltSendEnabled = sendValue;
+        ~limiterSynth.tryPerform(\set, \altSend, sendValue);
+    };
 
     ~setChannelGain = { |index, db|
         if((index >= 0) and: { index < ~channelSynths.size }) {
@@ -410,6 +420,7 @@ SynthDef(\mixChannel, {
     ~getStereoInputState = { ~stereoInputState };
 
     ~getReverbReturnState = { ~reverbReturnState };
+    ~getMasterAltSend = { ~masterAltSendEnabled };
 
     CmdPeriod.doOnce({ ~cleanupAudio.value });
 };
