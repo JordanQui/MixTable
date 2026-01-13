@@ -72,9 +72,11 @@
         channelBottom = CompositeView(channelContainer)
             .background_(sectionColor);
 
-        effectTabs = TabView(channelBottom)
+        effectTabs = TabbedView(channelBottom)
             .background_(sectionColor);
-        effectTabs.items = ["Greyhole", "Chorus", "Send"];
+        ["Greyhole", "Chorus", "Send"].do { |label|
+            effectTabs.add(label);
+        };
 
         greyholeSection = effectTabs.views[0]
             .background_(sectionColor);
