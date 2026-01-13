@@ -237,7 +237,7 @@
         ).margins_(4));
 
         channelBottom.layout_(VLayout(6,
-            [effectTabs, 0],
+            [effectTabs.view, 0],
             [eqArea, 1]
         ).margins_(4));
 
