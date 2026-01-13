@@ -46,7 +46,7 @@
 
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton;
-        var channelBottom, eqArea, eqControls, tabBar, effectStack, effectPages, tabButtons, setEffectTab;
+        var channelBottom, eqArea, eqControls;
         var greyholeSection, auxSection, auxSendSlider, greyholeControls, greyholeColumns;
         var chorusSection, chorusControls, chorusColumns;
 
@@ -72,13 +72,6 @@
 
         channelBottom = CompositeView(channelContainer)
             .background_(sectionColor);
-
-        tabBar = CompositeView(channelBottom)
-            .background_(sectionColor);
-
-        effectStack = StackLayout(channelBottom);
-        effectStack.margins = 0@0;
-        effectStack.spacing = 0;
 
         greyholeSection = CompositeView(channelBottom)
             .background_(sectionColor);
@@ -221,35 +214,6 @@
             [auxSendSlider, 0]
         ).margins_(2));
 
-        effectPages = [greyholeSection, chorusSection, auxSection];
-        effectPages.do { |page| effectStack.add(page) };
-        effectStack.index = 0;
-
-        tabButtons = Array.newClear(effectPages.size);
-        setEffectTab = { |tabIndex|
-            effectStack.index = tabIndex;
-            tabButtons.do { |btn, i|
-                if(btn.notNil) {
-                    btn.value = (i == tabIndex).asInteger;
-                };
-            };
-        };
-
-        ["Greyhole", "Chorus", "Send"].do { |label, i|
-            var button = Button(tabBar)
-                .states_([
-                    [label, Color.white, Color(0.2, 0.2, 0.25)],
-                    [label, Color.white, Color(0.3, 0.45, 0.7)]
-                ])
-                .maxHeight_(22);
-            button.action = { setEffectTab.value(i) };
-            tabButtons[i] = button;
-        };
-        tabBar.layout_(HLayout(6,
-            *(tabButtons.collect { |btn| [btn, 1] })
-        ).margins_(4));
-        setEffectTab.value(0);
-
         eqArea.layout_(VLayout(6,
             *(eqControls.collect { |control|
                 [control[\container], 1]
@@ -262,8 +226,9 @@
         ).margins_(4));
 
         channelBottom.layout_(VLayout(6,
-            [tabBar.fixedHeight_(30), 0],
-            [effectStack, 1],
+            [greyholeSection, 0],
+            [chorusSection, 0],
+            [auxSection, 0],
             [eqArea, 1]
         ).margins_(4));
 
