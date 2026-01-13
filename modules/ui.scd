@@ -236,14 +236,18 @@
         };
 
         ["Greyhole", "Chorus", "Send"].do { |label, i|
-            var button = Button(tabBar, Rect(10 + (i * 110), 4, 100, 22))
+            var button = Button(tabBar)
                 .states_([
                     [label, Color.white, Color(0.2, 0.2, 0.25)],
                     [label, Color.white, Color(0.3, 0.45, 0.7)]
-                ]);
+                ])
+                .maxHeight_(22);
             button.action = { setEffectTab.value(i) };
             tabButtons[i] = button;
         };
+        tabBar.layout_(HLayout(6,
+            *(tabButtons.collect { |btn| [btn, 1] })
+        ).margins_(4));
         setEffectTab.value(0);
 
         eqArea.layout_(VLayout(6,
