@@ -46,8 +46,9 @@
 
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton;
-        var channelBottom, eqArea, eqControls, effectTabs, greyholeSection, auxSection, auxSendSlider;
-        var greyholeControls, greyholeColumns, chorusSection, chorusControls, chorusColumns;
+        var channelBottom, eqArea, eqControls, tabBar, effectStack, effectPages, tabButtons, setEffectTab;
+        var greyholeSection, auxSection, auxSendSlider, greyholeControls, greyholeColumns;
+        var chorusSection, chorusControls, chorusColumns;
 
         channelContainer = CompositeView(channelArea)
             .minWidth_(220)
@@ -72,25 +73,20 @@
         channelBottom = CompositeView(channelContainer)
             .background_(sectionColor);
 
-        effectTabs = TabbedView(channelBottom);
-        if(effectTabs.respondsTo(\background_)) {
-            effectTabs.background_(sectionColor);
-        } {
-            if(effectTabs.respondsTo(\backgrounds_)) {
-                effectTabs.backgrounds_([sectionColor]);
-            };
-        };
-        ["Greyhole", "Chorus", "Send"].do { |label|
-            effectTabs.add(label);
-        };
-
-        greyholeSection = effectTabs.views[0]
+        tabBar = CompositeView(channelBottom)
             .background_(sectionColor);
 
-        chorusSection = effectTabs.views[1]
+        effectStack = StackLayout(channelBottom);
+        effectStack.margins = 0@0;
+        effectStack.spacing = 0;
+
+        greyholeSection = CompositeView(channelBottom)
             .background_(sectionColor);
 
-        auxSection = effectTabs.views[2]
+        chorusSection = CompositeView(channelBottom)
+            .background_(sectionColor);
+
+        auxSection = CompositeView(channelBottom)
             .background_(sectionColor);
 
         auxSendSlider = Slider(auxSection)
@@ -221,15 +217,40 @@
             *(chorusColumns.collect { |column| [column, 1] })
         ).margins_(0));
 
+        auxSection.layout_(VLayout(2,
+            [auxSendSlider, 0]
+        ).margins_(2));
+
+        effectPages = [greyholeSection, chorusSection, auxSection];
+        effectPages.do { |page| effectStack.add(page) };
+        effectStack.index = 0;
+
+        tabButtons = Array.newClear(effectPages.size);
+        setEffectTab = { |tabIndex|
+            effectStack.index = tabIndex;
+            tabButtons.do { |btn, i|
+                if(btn.notNil) {
+                    btn.value = (i == tabIndex).asInteger;
+                };
+            };
+        };
+
+        ["Greyhole", "Chorus", "Send"].do { |label, i|
+            var button = Button(tabBar, Rect(10 + (i * 110), 4, 100, 22))
+                .states_([
+                    [label, Color.white, Color(0.2, 0.2, 0.25)],
+                    [label, Color.white, Color(0.3, 0.45, 0.7)]
+                ]);
+            button.action = { setEffectTab.value(i) };
+            tabButtons[i] = button;
+        };
+        setEffectTab.value(0);
+
         eqArea.layout_(VLayout(6,
             *(eqControls.collect { |control|
                 [control[\container], 1]
             })
         ).margins_(4));
-
-        auxSection.layout_(VLayout(2,
-            [auxSendSlider, 0]
-        ).margins_(2));
 
         gainSection.layout_(VLayout(6,
             [gainSlider, 1],
@@ -237,7 +258,8 @@
         ).margins_(4));
 
         channelBottom.layout_(VLayout(6,
-            [effectTabs.view, 0],
+            [tabBar.fixedHeight_(30), 0],
+            [effectStack, 1],
             [eqArea, 1]
         ).margins_(4));
 
