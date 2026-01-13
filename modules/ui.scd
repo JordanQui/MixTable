@@ -291,10 +291,12 @@
     };
 
     masterColumn = { |area|
-        var column, masterEqArea, masterEqControls, returnSection, returnSliders, recordButton, recordContainer;
+        var column, masterEqArea, masterEqControls, returnSection, returnSliders;
+        var recordButton, airpodsButton, recordContainer;
         var masterState = ~getMasterEqState.value;
         var stereoInputState = ~getStereoInputState.value;
         var reverbReturnState = ~getReverbReturnState.value;
+        var airpodsOutputState = ~getAirpodsOutputState.value;
 
         column = CompositeView(area)
             .minWidth_(220)
@@ -396,6 +398,13 @@
             ])
             .maxWidth_(90);
 
+        airpodsButton = Button(returnSection)
+            .states_([
+                ["Connect to AirPods", Color.white, Color(0.3, 0.3, 0.35)],
+                ["Connect to AirPods", Color.white, Color(0.2, 0.6, 0.3)]
+            ])
+            .maxWidth_(140);
+
         recordButton.action = { |btn|
             if(btn.value == 1) {
                 s.prepareForRecord;
@@ -405,6 +414,11 @@
             };
         };
 
+        airpodsButton.action = { |btn|
+            var isConnected = btn.value.clip(0, 1);
+            ~setAirpodsOutput.value(isConnected);
+        };
+
         recordContainer = CompositeView(returnSection)
             .background_(panelColor);
 
@@ -412,6 +426,7 @@
             [StaticText(recordContainer)
                 .string_(" ")
                 .stringColor_(Color.clear), 1],
+            [airpodsButton, 0],
             [recordButton, 0]
         ).margins_(4));
 
@@ -448,6 +463,8 @@
             if(s.isRecording) {
                 recordButton.value_(1);
             };
+
+            airpodsButton.value_(airpodsOutputState[\connected] ?? { 0 });
         }.value;
 
         column;
