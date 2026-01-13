@@ -153,7 +153,7 @@ SynthDef(\mixChannel, {
 );
 
 ~cleanupAudio = {
-    [~channelSynths, ~limiterSynth, ~masterEqSynth, ~auxOutSynth, ~stereoInputSynth, ~reverbReturnSynth].do { |item|
+    [~channelSynths, ~limiterSynth, ~masterEqSynth, ~auxOutSynth, ~stereoInputSynth, ~reverbReturnSynth, ~airpodsOutSynth].do { |item|
         if(item.notNil) {
             if(item.isKindOf(Array)) {
                 item.do(_.tryPerform(\free));
@@ -178,6 +178,7 @@ SynthDef(\mixChannel, {
     ~auxOutSynth = nil;
     ~stereoInputSynth = nil;
     ~reverbReturnSynth = nil;
+    ~airpodsOutSynth = nil;
 }; 
 
 ~setupAudio = {
@@ -216,6 +217,7 @@ SynthDef(\mixChannel, {
 
     ~stereoInputState = (gainDB: 0);
     ~reverbReturnState = (gainDB: 0);
+    ~airpodsOutputState = (connected: 0);
 
     ~channelSynths = ~mixInputs.collect { |cfg, index|
         var state = ~channelStates[index];
@@ -295,6 +297,7 @@ SynthDef(\mixChannel, {
         \input, ~masterBus,
         \hardwareOut, 0
     ], target: ~outputGroup, addAction: \addToTail);
+    ~airpodsOutSynth = nil;
 
     ~setChannelGain = { |index, db|
         if((index >= 0) and: { index < ~channelSynths.size }) {
@@ -393,6 +396,22 @@ SynthDef(\mixChannel, {
         ~reverbReturnSynth.tryPerform(\set, \gainDB, gainDB);
     };
 
+    ~setAirpodsOutput = { |connected|
+        var isConnected = connected.clip(0, 1);
+        ~airpodsOutputState[\connected] = isConnected;
+        if(isConnected == 1) {
+            if(~airpodsOutSynth.isNil) {
+                ~airpodsOutSynth = Synth(\outputLimiter, [
+                    \input, ~masterBus,
+                    \hardwareOut, 68
+                ], target: ~outputGroup, addAction: \addToTail);
+            };
+        } {
+            ~airpodsOutSynth.tryPerform(\free);
+            ~airpodsOutSynth = nil;
+        };
+    };
+
     ~getChannelState = { |index|
         ~channelStates[index] ?? {
             var eqState = IdentityDictionary.new;
@@ -410,6 +429,8 @@ SynthDef(\mixChannel, {
     ~getStereoInputState = { ~stereoInputState };
 
     ~getReverbReturnState = { ~reverbReturnState };
+
+    ~getAirpodsOutputState = { ~airpodsOutputState };
 
     CmdPeriod.doOnce({ ~cleanupAudio.value });
 };
