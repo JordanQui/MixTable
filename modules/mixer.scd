@@ -40,7 +40,8 @@ SynthDef(\reverbReturn, {
     (label: "7 / 8",  channels: [6, 7],   isMono: 0),
     (label: "21 / 22", channels: [20, 21], isMono: 0),
     (label: "15 / 16", channels: [14, 15], isMono: 0),
-    (label: "17 / 18", channels: [16, 17], isMono: 0)
+    (label: "17 / 18", channels: [16, 17], isMono: 0),
+    (label: "1 / 2", channels: [0, 1], isMono: 0)
 ];
 
 // SynthDef pour chaque tranche d'entrée avec égalisation 4 bandes
