@@ -51,7 +51,7 @@
         var chorusSection, chorusControls, chorusColumns;
 
         channelContainer = CompositeView(channelArea)
-            .minWidth_(220)
+            .minWidth_(165)
             .background_(panelColor);
 
         gainSection = CompositeView(channelContainer)
@@ -300,7 +300,7 @@
         var airpodsOutputState = ~getAirpodsOutputState.value;
 
         column = CompositeView(area)
-            .minWidth_(220)
+            .minWidth_(165)
             .background_(panelColor);
 
         masterEqArea = CompositeView(column)
