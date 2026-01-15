@@ -73,15 +73,19 @@
         channelBottom = CompositeView(channelContainer)
             .background_(sectionColor);
 
-        effectsTabs = TabbedView(channelBottom);
+        effectsTabs = TabbedView(channelBottom)
+            .minHeight_(150);
 
         greyholeSection = effectsTabs.add("Greyhole")
+            .minHeight_(140)
             .background_(sectionColor);
 
         chorusSection = effectsTabs.add("Chorus")
+            .minHeight_(140)
             .background_(sectionColor);
 
         auxSection = effectsTabs.add("Send")
+            .minHeight_(60)
             .background_(sectionColor);
 
         auxSendSlider = Slider(auxSection)
@@ -228,8 +232,8 @@
         ).margins_(4));
 
         channelBottom.layout_(VLayout(6,
-            [effectsTabs.view, 0],
-            [eqArea, 1]
+            [effectsTabs.view, 1],
+            [eqArea, 2]
         ).margins_(4));
 
         channelContainer.layout_(VLayout(2,
