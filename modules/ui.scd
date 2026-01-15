@@ -1,5 +1,6 @@
 ~createUI = {
     var window, channelArea, channelViews, masterColumn, layoutColumns;
+    var effectsWindow, effectsArea, effectsViews, effectsColumns;
     var windowColor = Color(0.08, 0.08, 0.1);
     var panelColor = Color(0.12, 0.12, 0.16);
     var sectionColor = Color(0.18, 0.18, 0.22);
@@ -30,6 +31,7 @@
     ];
 
     if(~mixWindow.notNil) { ~mixWindow.close };
+    if(~effectsWindow.notNil) { ~effectsWindow.close };
     window = Window("MixTable - 7 voies", Rect(100, 100, 1380, 700));
     if(window.respondsTo(\resizable_)) {
         window.resizable_(true);
@@ -46,9 +48,7 @@
 
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton;
-        var channelBottom, eqArea, eqControls;
-        var effectsSection, greyholeSection, auxSection, auxSendSlider, greyholeControls, greyholeColumns;
-        var chorusSection, chorusControls, chorusColumns;
+        var eqArea, eqControls;
 
         channelContainer = CompositeView(channelArea)
             .minWidth_(165)
@@ -70,34 +70,7 @@
             ])
             .maxHeight_(28);
 
-        channelBottom = CompositeView(channelContainer)
-            .background_(sectionColor);
-
-        effectsSection = CompositeView(channelBottom)
-            .minHeight_(150)
-            .background_(sectionColor);
-
-        greyholeSection = CompositeView(effectsSection)
-            .minHeight_(140)
-            .background_(sectionColor);
-
-        chorusSection = CompositeView(effectsSection)
-            .minHeight_(140)
-            .background_(sectionColor);
-
-        auxSection = CompositeView(effectsSection)
-            .minHeight_(30)
-            .maxHeight_(32)
-            .background_(sectionColor);
-
-        auxSendSlider = Slider(auxSection)
-            .orientation_(\horizontal)
-            .minHeight_(12)
-            .maxHeight_(12)
-            .background_(sectionColor)
-            .knobColor_(accentColor);
-
-        eqArea = CompositeView(channelBottom)
+        eqArea = CompositeView(channelContainer)
             .minHeight_(320)
             .background_(sectionColor);
 
@@ -145,6 +118,123 @@
 
             (container: eqContainer, slider: eqSlider, qSlider: qSlider, qRange: qRange, spec: spec);
         };
+
+        eqArea.layout_(VLayout(6,
+            *(eqControls.collect { |control|
+                [control[\container], 1]
+            })
+        ).margins_(4));
+
+        gainSection.layout_(VLayout(6,
+            [gainSlider, 1],
+            [muteButton, 0]
+        ).margins_(4));
+
+        channelContainer.layout_(VLayout(2,
+            [gainSection, 1],
+            [eqArea, 3]
+        ).margins_(6));
+
+        {
+            var state = ~getChannelState.value(index);
+            var gainDB = state[\gainDB] ?? { 0 };
+            var sliderValue = gainDB.linlin(-60, 20, 0, 1).clip(0, 1);
+            var isMuted = state[\muted] ?? { 0 };
+            gainSlider.value_(sliderValue);
+            muteButton.value_(isMuted);
+
+            gainSlider.action = { |sl|
+                var db = sl.value.linlin(0, 1, -60, 20);
+                ~setChannelGain.value(index, db);
+            };
+
+            muteButton.action = { |btn|
+                var muted = btn.value.clip(0, 1);
+                ~setChannelMute.value(index, muted);
+            };
+
+            eqControls.do { |control|
+                var spec = control[\spec];
+                var eqState = state[\eq][spec[\band]] ?? { ~eqDefaults[spec[\band]].copy };
+                var x = eqState[\freq].linexp(spec[\freqRange][0], spec[\freqRange][1], 0, 1).clip(0, 1);
+                var y = eqState[\gain].linlin(spec[\gainRange][0], spec[\gainRange][1], 0, 1).clip(0, 1);
+                var qValue = (eqState[\q] ?? { 1 }).clip(control[\qRange][0], control[\qRange][1]);
+                var qSliderValue = qValue.explin(control[\qRange][0], control[\qRange][1], 0, 1).clip(0, 1);
+                control[\slider].setXY(x, y);
+                control[\qSlider].value_(qSliderValue);
+            };
+        }.value;
+
+        (container: channelContainer);
+    };
+
+    if(~effectsWindow.notNil) { ~effectsWindow.close };
+    effectsWindow = Window("MixTable - Effets", Rect(100, 830, 1380, 520));
+    if(effectsWindow.respondsTo(\resizable_)) {
+        effectsWindow.resizable_(true);
+    } {
+        if(effectsWindow.respondsTo(\resizable)) {
+            effectsWindow.resizable = true;
+        };
+    };
+    effectsWindow.view.background_(windowColor);
+    ~effectsWindow = effectsWindow;
+
+    effectsArea = CompositeView(effectsWindow)
+        .background_(windowColor);
+
+    effectsViews = ~mixInputs.collect { |cfg, index|
+        var effectsContainer, headerSection, headerLabel;
+        var greyholeSection, greyholeHeader, greyholeHeaderText, greyholeControls, greyholeColumns, greyholeColumnsContainer;
+        var chorusSection, chorusHeader, chorusHeaderText, chorusControls;
+        var auxSection, auxHeaderText, auxSendSlider;
+
+        effectsContainer = CompositeView(effectsArea)
+            .minWidth_(200)
+            .background_(panelColor);
+
+        headerSection = CompositeView(effectsContainer)
+            .background_(panelColor);
+        headerLabel = StaticText(headerSection)
+            .string_("Canal " ++ (cfg[\label] ?? { (index + 1).asString }))
+            .align_(\center)
+            .stringColor_(Color.white)
+            .font_(Font(Font.defaultSansFace, 12, true));
+
+        greyholeSection = CompositeView(effectsContainer)
+            .background_(sectionColor);
+        greyholeHeader = CompositeView(greyholeSection)
+            .background_(panelColor);
+        greyholeHeaderText = StaticText(greyholeHeader)
+            .string_("Greyhole / Reverb")
+            .align_(\left)
+            .stringColor_(Color.white)
+            .font_(Font(Font.defaultSansFace, 10, true));
+
+        chorusSection = CompositeView(effectsContainer)
+            .background_(sectionColor);
+        chorusHeader = CompositeView(chorusSection)
+            .background_(panelColor);
+        chorusHeaderText = StaticText(chorusHeader)
+            .string_("Chorus")
+            .align_(\left)
+            .stringColor_(Color.white)
+            .font_(Font(Font.defaultSansFace, 10, true));
+
+        auxSection = CompositeView(effectsContainer)
+            .background_(sectionColor);
+        auxHeaderText = StaticText(auxSection)
+            .string_("Aux")
+            .align_(\left)
+            .stringColor_(Color.white)
+            .font_(Font(Font.defaultSansFace, 10, true));
+
+        auxSendSlider = Slider(auxSection)
+            .orientation_(\horizontal)
+            .minHeight_(12)
+            .maxHeight_(12)
+            .background_(panelColor)
+            .knobColor_(accentColor);
 
         greyholeControls = greyholeSpecs.collect { |spec|
             var container, slider, labelView;
@@ -206,79 +296,55 @@
             (container: container, slider: slider, spec: spec);
         };
 
-        greyholeSection.layout_(HLayout(6,
+        greyholeColumnsContainer = CompositeView(greyholeSection)
+            .background_(sectionColor);
+
+        greyholeHeader.layout_(HLayout(4,
+            [greyholeHeaderText, 1]
+        ).margins_(4));
+
+        greyholeColumnsContainer.layout_(HLayout(6,
             *(greyholeColumns.collect { |column| [column, 1] })
         ).margins_(0));
 
+        greyholeSection.layout_(VLayout(4,
+            [greyholeHeader, 0],
+            [greyholeColumnsContainer, 1]
+        ).margins_(4));
+
+        chorusHeader.layout_(HLayout(4,
+            [chorusHeaderText, 1]
+        ).margins_(4));
+
         chorusSection.layout_(VLayout(4,
+            [chorusHeader, 0],
             *(chorusControls.collect { |control| [control[\container], 0] })
-        ).margins_(2));
+        ).margins_(4));
 
-        auxSection.layout_(VLayout(2,
+        auxSection.layout_(VLayout(4,
+            [auxHeaderText, 0],
             [auxSendSlider, 0]
-        ).margins_(2));
-
-        eqArea.layout_(VLayout(6,
-            *(eqControls.collect { |control|
-                [control[\container], 1]
-            })
         ).margins_(4));
 
-        gainSection.layout_(VLayout(6,
-            [gainSlider, 1],
-            [muteButton, 0]
+        headerSection.layout_(VLayout(2,
+            [headerLabel, 0]
         ).margins_(4));
 
-        effectsSection.layout_(VLayout(6,
-            [greyholeSection, 0],
-            [chorusSection, 0],
+        effectsContainer.layout_(VLayout(6,
+            [headerSection, 0],
+            [greyholeSection, 2],
+            [chorusSection, 1],
             [auxSection, 0]
-        ).margins_(4));
-
-        channelBottom.layout_(VLayout(6,
-            [effectsSection, 1],
-            [eqArea, 2]
-        ).margins_(4));
-
-        channelContainer.layout_(VLayout(2,
-            [gainSection, 1],
-            [channelBottom, 3]
         ).margins_(6));
 
         {
             var state = ~getChannelState.value(index);
-            var gainDB = state[\gainDB] ?? { 0 };
-            var sliderValue = gainDB.linlin(-60, 20, 0, 1).clip(0, 1);
-            var isMuted = state[\muted] ?? { 0 };
             var auxValue = (state[\aux] ?? { 0 }).clip(0, 1);
             var greyholeState = state[\greyhole] ?? { ~greyholeDefaults.copy };
-            gainSlider.value_(sliderValue);
-            muteButton.value_(isMuted);
             auxSendSlider.value_(auxValue);
-
-            gainSlider.action = { |sl|
-                var db = sl.value.linlin(0, 1, -60, 20);
-                ~setChannelGain.value(index, db);
-            };
-
-            muteButton.action = { |btn|
-                var muted = btn.value.clip(0, 1);
-                ~setChannelMute.value(index, muted);
-            };
 
             auxSendSlider.action = { |sl|
                 ~setChannelAux.value(index, sl.value.clip(0, 1));
-            };
-
-            eqControls.do { |control|
-                var spec = control[\spec];
-                var eqState = state[\eq][spec[\band]] ?? { ~eqDefaults[spec[\band]].copy };
-                var x = eqState[\freq].linexp(spec[\freqRange][0], spec[\freqRange][1], 0, 1).clip(0, 1);
-                var y = eqState[\gain].linlin(spec[\gainRange][0], spec[\gainRange][1], 0, 1).clip(0, 1);
-                var qValue = (eqState[\q] ?? { 1 }).clip(control[\qRange][0], control[\qRange][1]);
-                var qSliderValue = qValue.explin(control[\qRange][0], control[\qRange][1], 0, 1).clip(0, 1);
-                control[\slider].setXY(x, y);
-                control[\qSlider].value_(qSliderValue);
             };
 
             greyholeControls.do { |control|
@@ -296,7 +362,7 @@
             };
         }.value;
 
-        (container: channelContainer);
+        (container: effectsContainer);
     };
 
     masterColumn = { |area|
@@ -492,8 +558,24 @@
         [channelArea, 1]
     ).margins_(10));
 
+    effectsColumns = effectsViews.collect { |control|
+        [control[\container], 1]
+    };
+
+    effectsArea.layout_(HLayout(10,
+        *effectsColumns
+    ).margins_(10));
+
+    effectsWindow.layout_(VLayout(10,
+        [effectsArea, 1]
+    ).margins_(10));
+
     window.onClose = {
         ~mixWindow = nil;
+        if(~effectsWindow.notNil) {
+            ~effectsWindow.close;
+        };
+        ~effectsWindow = nil;
         {
             ~cleanupAudio.tryPerform(\value);
             s.quit;
@@ -501,4 +583,5 @@
         window.close;
     };
     window.front;
+    effectsWindow.front;
 };
