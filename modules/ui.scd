@@ -86,11 +86,14 @@
             .background_(sectionColor);
 
         auxSection = CompositeView(effectsSection)
-            .minHeight_(60)
+            .minHeight_(30)
+            .maxHeight_(32)
             .background_(sectionColor);
 
         auxSendSlider = Slider(auxSection)
             .orientation_(\horizontal)
+            .minHeight_(12)
+            .maxHeight_(12)
             .background_(sectionColor)
             .knobColor_(accentColor);
 
@@ -179,9 +182,12 @@
         chorusControls = chorusSpecs.collect { |spec|
             var container, slider, labelView;
             container = CompositeView(chorusSection)
+                .maxHeight_(24)
                 .background_(panelColor);
             slider = Slider(container)
                 .orientation_(\horizontal)
+                .minHeight_(12)
+                .maxHeight_(12)
                 .background_(sectionColor)
                 .knobColor_(accentColor);
             labelView = StaticText(container)
