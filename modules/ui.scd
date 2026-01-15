@@ -206,22 +206,13 @@
             (container: container, slider: slider, spec: spec);
         };
 
-        chorusColumns = chorusControls.clump(2).collect { |columnControls|
-            var columnView = CompositeView(chorusSection)
-                .background_(sectionColor);
-            columnView.layout_(VLayout(2,
-                *(columnControls.collect { |control| [control[\container], 0] })
-            ).margins_(0));
-            columnView;
-        };
-
         greyholeSection.layout_(HLayout(6,
             *(greyholeColumns.collect { |column| [column, 1] })
         ).margins_(0));
 
-        chorusSection.layout_(HLayout(6,
-            *(chorusColumns.collect { |column| [column, 1] })
-        ).margins_(0));
+        chorusSection.layout_(VLayout(4,
+            *(chorusControls.collect { |control| [control[\container], 0] })
+        ).margins_(2));
 
         auxSection.layout_(VLayout(2,
             [auxSendSlider, 0]
