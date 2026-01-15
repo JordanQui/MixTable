@@ -73,16 +73,15 @@
         channelBottom = CompositeView(channelContainer)
             .background_(sectionColor);
 
-        effectsTabs = TabbedView(channelBottom)
+        effectsTabs = TabbedView(channelBottom);
+
+        greyholeSection = CompositeView(effectsTabs.view)
             .background_(sectionColor);
 
-        greyholeSection = CompositeView(effectsTabs)
+        chorusSection = CompositeView(effectsTabs.view)
             .background_(sectionColor);
 
-        chorusSection = CompositeView(effectsTabs)
-            .background_(sectionColor);
-
-        auxSection = CompositeView(effectsTabs)
+        auxSection = CompositeView(effectsTabs.view)
             .background_(sectionColor);
 
         auxSendSlider = Slider(auxSection)
