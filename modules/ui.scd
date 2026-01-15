@@ -47,7 +47,7 @@
     channelViews = ~mixInputs.collect { |cfg, index|
         var channelContainer, gainSection, gainSlider, muteButton;
         var channelBottom, eqArea, eqControls;
-        var greyholeSection, auxSection, auxSendSlider, greyholeControls, greyholeColumns;
+        var effectsTabs, greyholeSection, auxSection, auxSendSlider, greyholeControls, greyholeColumns;
         var chorusSection, chorusControls, chorusColumns;
 
         channelContainer = CompositeView(channelArea)
@@ -73,13 +73,16 @@
         channelBottom = CompositeView(channelContainer)
             .background_(sectionColor);
 
-        greyholeSection = CompositeView(channelBottom)
+        effectsTabs = TabbedView(channelBottom)
             .background_(sectionColor);
 
-        chorusSection = CompositeView(channelBottom)
+        greyholeSection = CompositeView(effectsTabs)
             .background_(sectionColor);
 
-        auxSection = CompositeView(channelBottom)
+        chorusSection = CompositeView(effectsTabs)
+            .background_(sectionColor);
+
+        auxSection = CompositeView(effectsTabs)
             .background_(sectionColor);
 
         auxSendSlider = Slider(auxSection)
@@ -225,10 +228,12 @@
             [muteButton, 0]
         ).margins_(4));
 
+        effectsTabs.add("Greyhole", greyholeSection);
+        effectsTabs.add("Chorus", chorusSection);
+        effectsTabs.add("Send", auxSection);
+
         channelBottom.layout_(VLayout(6,
-            [greyholeSection, 0],
-            [chorusSection, 0],
-            [auxSection, 0],
+            [effectsTabs, 0],
             [eqArea, 1]
         ).margins_(4));
 
