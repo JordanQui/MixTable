@@ -75,13 +75,13 @@
 
         effectsTabs = TabbedView(channelBottom);
 
-        greyholeSection = CompositeView(effectsTabs.view)
+        greyholeSection = effectsTabs.add("Greyhole")
             .background_(sectionColor);
 
-        chorusSection = CompositeView(effectsTabs.view)
+        chorusSection = effectsTabs.add("Chorus")
             .background_(sectionColor);
 
-        auxSection = CompositeView(effectsTabs.view)
+        auxSection = effectsTabs.add("Send")
             .background_(sectionColor);
 
         auxSendSlider = Slider(auxSection)
@@ -226,10 +226,6 @@
             [gainSlider, 1],
             [muteButton, 0]
         ).margins_(4));
-
-        effectsTabs.add("Greyhole", greyholeSection);
-        effectsTabs.add("Chorus", chorusSection);
-        effectsTabs.add("Send", auxSection);
 
         channelBottom.layout_(VLayout(6,
             [effectsTabs, 0],
