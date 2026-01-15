@@ -73,8 +73,8 @@
         channelBottom = CompositeView(channelContainer)
             .background_(sectionColor);
 
-        effectsTabs = TabbedView(channelBottom)
-            .minHeight_(150);
+        effectsTabs = TabbedView(channelBottom);
+        effectsTabs.view.minHeight_(150);
 
         greyholeSection = effectsTabs.add("Greyhole")
             .minHeight_(140)
