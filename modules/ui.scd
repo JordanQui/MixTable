@@ -1,7 +1,8 @@
 ~createUI = {
     var window, channelArea, channelViews, masterColumn, layoutColumns;
     var effectsWindow, effectsArea, effectsViews, effectsColumns;
-    var drumWindow, drumChannelArea, drumChannelViews, drumEffectsArea, drumEffectsViews, drumColumns;
+    var drumWindow, drumChannelArea, drumChannelViews, drumColumns;
+    var drumEffectsWindow, drumEffectsArea, drumEffectsViews;
     var windowColor = Color(0.08, 0.08, 0.1);
     var panelColor = Color(0.12, 0.12, 0.16);
     var sectionColor = Color(0.18, 0.18, 0.22);
@@ -170,7 +171,7 @@
     };
 
     if(~effectsWindow.notNil) { ~effectsWindow.close };
-    effectsWindow = Window("MixTable - Effets", Rect(100, 830, 1380, 520));
+    effectsWindow = Window("MixTable - FX Mix", Rect(100, 830, 1380, 520));
     if(effectsWindow.respondsTo(\resizable_)) {
         effectsWindow.resizable_(true);
     } {
@@ -572,6 +573,7 @@
     ).margins_(10));
 
     if(~drumWindow.notNil) { ~drumWindow.close };
+    if(~drumEffectsWindow.notNil) { ~drumEffectsWindow.close };
     drumWindow = Window("MixTable - Drums", Rect(100, 1390, 1800, 600));
     if(drumWindow.respondsTo(\resizable_)) {
         drumWindow.resizable_(true);
@@ -708,7 +710,18 @@
         (container: channelContainer);
     };
 
-    drumEffectsArea = CompositeView(drumWindow)
+    drumEffectsWindow = Window("MixTable - FX Drums", Rect(100, 2020, 1800, 520));
+    if(drumEffectsWindow.respondsTo(\resizable_)) {
+        drumEffectsWindow.resizable_(true);
+    } {
+        if(drumEffectsWindow.respondsTo(\resizable)) {
+            drumEffectsWindow.resizable = true;
+        };
+    };
+    drumEffectsWindow.view.background_(windowColor);
+    ~drumEffectsWindow = drumEffectsWindow;
+
+    drumEffectsArea = CompositeView(drumEffectsWindow)
         .background_(windowColor);
 
     drumEffectsViews = ~drumInputs.collect { |cfg, index|
@@ -906,7 +919,10 @@
     ).margins_(10));
 
     drumWindow.layout_(HLayout(10,
-        [drumChannelArea, 1],
+        [drumChannelArea, 1]
+    ).margins_(10));
+
+    drumEffectsWindow.layout_(VLayout(10,
         [drumEffectsArea, 1]
     ).margins_(10));
 
@@ -920,6 +936,10 @@
             ~drumWindow.close;
         };
         ~drumWindow = nil;
+        if(~drumEffectsWindow.notNil) {
+            ~drumEffectsWindow.close;
+        };
+        ~drumEffectsWindow = nil;
         {
             ~cleanupAudio.tryPerform(\value);
             s.quit;
@@ -929,4 +949,5 @@
     window.front;
     effectsWindow.front;
     drumWindow.front;
+    drumEffectsWindow.front;
 };
