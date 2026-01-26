@@ -31,6 +31,24 @@
         (key: \chorusDryWet, label: "Mix", range: [0, 1]),
         (key: \chorusFeedback, label: "Feedbk", range: [0, 1])
     ];
+    var fxSpecs = [
+        (key: \preHpfFreq, label: "HPF", range: [10, 200]),
+        (key: \preLowShelfFreq, label: "LowShelf F", range: [40, 300]),
+        (key: \preLowShelfGain, label: "LowShelf G", range: [-12, 12]),
+        (key: \monoBassFreq, label: "Mono Bass", range: [60, 200]),
+        (key: \autopanRate, label: "Pan Rate", range: [0.01, 2]),
+        (key: \autopanDepth, label: "Pan Depth", range: [0, 1]),
+        (key: \haasDelayL, label: "Haas L", range: [0.001, 0.03]),
+        (key: \haasDelayR, label: "Haas R", range: [0.001, 0.03]),
+        (key: \haasMix, label: "Haas Mix", range: [0, 1]),
+        (key: \haasHighFreq, label: "Haas HPF", range: [200, 4000]),
+        (key: \allpassMix, label: "Allpass Mix", range: [0, 1]),
+        (key: \allpassTime, label: "Allpass T", range: [0.001, 0.03]),
+        (key: \allpassDecay, label: "Allpass Dec", range: [0.01, 1]),
+        (key: \ghSideBias, label: "Side Bias", range: [0, 1]),
+        (key: \sideHpfFreq, label: "Side HPF", range: [80, 300]),
+        (key: \satDrive, label: "Sat Drive", range: [0, 2])
+    ];
 
     if(~mixWindow.notNil) { ~mixWindow.close };
     if(~effectsWindow.notNil) { ~effectsWindow.close };
@@ -187,6 +205,7 @@
 
     effectsViews = ~mixInputs.collect { |cfg, index|
         var effectsContainer, headerSection, headerLabel;
+        var fxSection, fxHeader, fxHeaderText, fxControls, fxColumns, fxColumnsContainer;
         var greyholeSection, greyholeHeader, greyholeHeaderText, greyholeControls, greyholeColumns, greyholeColumnsContainer;
         var chorusSection, chorusHeader, chorusHeaderText, chorusControls;
         var auxSection, auxHeaderText, auxSendSlider;
@@ -237,6 +256,52 @@
             .maxHeight_(12)
             .background_(panelColor)
             .knobColor_(accentColor);
+
+        fxSection = CompositeView(effectsContainer)
+            .background_(sectionColor);
+        fxHeader = CompositeView(fxSection)
+            .background_(panelColor);
+        fxHeaderText = StaticText(fxHeader)
+            .string_("FX Chain")
+            .align_(\left)
+            .stringColor_(Color.white)
+            .font_(Font(Font.defaultSansFace, 10, true));
+
+        fxControls = fxSpecs.collect { |spec|
+            var container, slider, labelView;
+            container = CompositeView(fxSection)
+                .background_(panelColor);
+            slider = Slider(container)
+                .orientation_(\horizontal)
+                .background_(sectionColor)
+                .knobColor_(accentColor);
+            labelView = StaticText(container)
+                .string_(spec[\label])
+                .align_(\left)
+                .stringColor_(Color.white)
+                .font_(Font(Font.defaultSansFace, 9));
+            container.layout_(HLayout(4,
+                [slider, 1],
+                [labelView, 0]
+            ).margins_(2));
+            slider.action = { |sl|
+                var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
+                ~setChannelFx.value(index, spec[\key], value);
+            };
+            (container: container, slider: slider, spec: spec);
+        };
+
+        fxColumns = fxControls.clump(4).collect { |columnControls|
+            var columnView = CompositeView(fxSection)
+                .background_(sectionColor);
+            columnView.layout_(VLayout(2,
+                *(columnControls.collect { |control| [control[\container], 0] })
+            ).margins_(0));
+            columnView;
+        };
+
+        fxColumnsContainer = CompositeView(fxSection)
+            .background_(sectionColor);
 
         greyholeControls = greyholeSpecs.collect { |spec|
             var container, slider, labelView;
@@ -301,6 +366,19 @@
         greyholeColumnsContainer = CompositeView(greyholeSection)
             .background_(sectionColor);
 
+        fxHeader.layout_(HLayout(4,
+            [fxHeaderText, 1]
+        ).margins_(4));
+
+        fxColumnsContainer.layout_(HLayout(6,
+            *(fxColumns.collect { |column| [column, 1] })
+        ).margins_(0));
+
+        fxSection.layout_(VLayout(4,
+            [fxHeader, 0],
+            [fxColumnsContainer, 1]
+        ).margins_(4));
+
         greyholeHeader.layout_(HLayout(4,
             [greyholeHeaderText, 1]
         ).margins_(4));
@@ -334,6 +412,7 @@
 
         effectsContainer.layout_(VLayout(6,
             [headerSection, 0],
+            [fxSection, 2],
             [greyholeSection, 2],
             [chorusSection, 1],
             [auxSection, 0]
@@ -343,6 +422,7 @@
             var state = ~getChannelState.value(index);
             var auxValue = (state[\aux] ?? { 0 }).clip(0, 1);
             var greyholeState = state[\greyhole] ?? { ~greyholeDefaults.copy };
+            var fxState = state[\fx] ?? { ~fxDefaults.copy };
             auxSendSlider.value_(auxValue);
 
             auxSendSlider.action = { |sl|
@@ -359,6 +439,13 @@
             chorusControls.do { |control|
                 var range = control[\spec][\range];
                 var value = greyholeState[control[\spec][\key]] ?? { range[0] };
+                var normalized = value.linlin(range[0], range[1], 0, 1).clip(0, 1);
+                control[\slider].value_(normalized);
+            };
+
+            fxControls.do { |control|
+                var range = control[\spec][\range];
+                var value = fxState[control[\spec][\key]] ?? { range[0] };
                 var normalized = value.linlin(range[0], range[1], 0, 1).clip(0, 1);
                 control[\slider].value_(normalized);
             };
@@ -726,6 +813,7 @@
 
     drumEffectsViews = ~drumInputs.collect { |cfg, index|
         var effectsContainer, headerSection, headerLabel;
+        var fxSection, fxHeader, fxHeaderText, fxControls, fxColumns, fxColumnsContainer;
         var greyholeSection, greyholeHeader, greyholeHeaderText, greyholeControls, greyholeColumns, greyholeColumnsContainer;
         var chorusSection, chorusHeader, chorusHeaderText, chorusControls;
         var auxSection, auxHeaderText, auxSendSlider;
@@ -776,6 +864,52 @@
             .maxHeight_(12)
             .background_(panelColor)
             .knobColor_(accentColor);
+
+        fxSection = CompositeView(effectsContainer)
+            .background_(sectionColor);
+        fxHeader = CompositeView(fxSection)
+            .background_(panelColor);
+        fxHeaderText = StaticText(fxHeader)
+            .string_("FX Chain")
+            .align_(\left)
+            .stringColor_(Color.white)
+            .font_(Font(Font.defaultSansFace, 10, true));
+
+        fxControls = fxSpecs.collect { |spec|
+            var container, slider, labelView;
+            container = CompositeView(fxSection)
+                .background_(panelColor);
+            slider = Slider(container)
+                .orientation_(\horizontal)
+                .background_(sectionColor)
+                .knobColor_(accentColor);
+            labelView = StaticText(container)
+                .string_(spec[\label])
+                .align_(\left)
+                .stringColor_(Color.white)
+                .font_(Font(Font.defaultSansFace, 9));
+            container.layout_(HLayout(4,
+                [slider, 1],
+                [labelView, 0]
+            ).margins_(2));
+            slider.action = { |sl|
+                var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
+                ~setDrumFx.value(index, spec[\key], value);
+            };
+            (container: container, slider: slider, spec: spec);
+        };
+
+        fxColumns = fxControls.clump(4).collect { |columnControls|
+            var columnView = CompositeView(fxSection)
+                .background_(sectionColor);
+            columnView.layout_(VLayout(2,
+                *(columnControls.collect { |control| [control[\container], 0] })
+            ).margins_(0));
+            columnView;
+        };
+
+        fxColumnsContainer = CompositeView(fxSection)
+            .background_(sectionColor);
 
         greyholeControls = greyholeSpecs.collect { |spec|
             var container, slider, labelView;
@@ -840,6 +974,19 @@
         greyholeColumnsContainer = CompositeView(greyholeSection)
             .background_(sectionColor);
 
+        fxHeader.layout_(HLayout(4,
+            [fxHeaderText, 1]
+        ).margins_(4));
+
+        fxColumnsContainer.layout_(HLayout(6,
+            *(fxColumns.collect { |column| [column, 1] })
+        ).margins_(0));
+
+        fxSection.layout_(VLayout(4,
+            [fxHeader, 0],
+            [fxColumnsContainer, 1]
+        ).margins_(4));
+
         greyholeHeader.layout_(HLayout(4,
             [greyholeHeaderText, 1]
         ).margins_(4));
@@ -873,6 +1020,7 @@
 
         effectsContainer.layout_(VLayout(6,
             [headerSection, 0],
+            [fxSection, 2],
             [greyholeSection, 2],
             [chorusSection, 1],
             [auxSection, 0]
@@ -882,6 +1030,7 @@
             var state = ~getDrumState.value(index);
             var auxValue = (state[\aux] ?? { 0 }).clip(0, 1);
             var greyholeState = state[\greyhole] ?? { ~greyholeDefaults.copy };
+            var fxState = state[\fx] ?? { ~fxDefaults.copy };
             auxSendSlider.value_(auxValue);
 
             auxSendSlider.action = { |sl|
@@ -898,6 +1047,13 @@
             chorusControls.do { |control|
                 var range = control[\spec][\range];
                 var value = greyholeState[control[\spec][\key]] ?? { range[0] };
+                var normalized = value.linlin(range[0], range[1], 0, 1).clip(0, 1);
+                control[\slider].value_(normalized);
+            };
+
+            fxControls.do { |control|
+                var range = control[\spec][\range];
+                var value = fxState[control[\spec][\key]] ?? { range[0] };
                 var normalized = value.linlin(range[0], range[1], 0, 1).clip(0, 1);
                 control[\slider].value_(normalized);
             };
