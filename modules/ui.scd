@@ -310,6 +310,7 @@
             slider = Slider(container)
                 .orientation_(\vertical)
                 .minHeight_(120)
+                .maxHeight_(120)
                 .background_(sectionColor)
                 .knobColor_(accentColor);
             labelView = StaticText(container)
@@ -319,8 +320,11 @@
                 .font_(Font(Font.defaultSansFace, 9));
             container.layout_(VLayout(4,
                 [labelView, 0],
-                [slider, 1]
+                [slider, 0]
             ).margins_(2));
+            container
+                .minHeight_(150)
+                .maxHeight_(150);
             slider.action = { |sl|
                 var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
                 ~setChannelFx.value(index, spec[\key], value);
@@ -328,16 +332,6 @@
             control = (container: container, slider: slider, spec: spec);
             fxControlsByKey[spec[\key]] = control;
             control;
-        };
-
-        fxColumns = fxGroups.collect { |groupSpecs|
-            var columnControls = groupSpecs.collect { |spec| fxControlsByKey[spec[\key]] };
-            var columnView = CompositeView(fxSection)
-                .background_(sectionColor);
-            columnView.layout_(VLayout(2,
-                *(columnControls.collect { |control| [control[\container], 0] })
-            ).margins_(0));
-            columnView;
         };
 
         fxColumnsContainer = CompositeView(fxSection)
@@ -411,7 +405,7 @@
         ).margins_(4));
 
         fxColumnsContainer.layout_(HLayout(6,
-            *(fxColumns.collect { |column| [column, 1] })
+            *(fxSpecs.collect { |spec| [fxControlsByKey[spec[\key]][\container], 0] })
         ).margins_(0));
 
         fxSection.layout_(VLayout(4,
@@ -923,6 +917,7 @@
             slider = Slider(container)
                 .orientation_(\vertical)
                 .minHeight_(120)
+                .maxHeight_(120)
                 .background_(sectionColor)
                 .knobColor_(accentColor);
             labelView = StaticText(container)
@@ -932,8 +927,11 @@
                 .font_(Font(Font.defaultSansFace, 9));
             container.layout_(VLayout(4,
                 [labelView, 0],
-                [slider, 1]
+                [slider, 0]
             ).margins_(2));
+            container
+                .minHeight_(150)
+                .maxHeight_(150);
             slider.action = { |sl|
                 var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
                 ~setDrumFx.value(index, spec[\key], value);
@@ -941,16 +939,6 @@
             control = (container: container, slider: slider, spec: spec);
             fxControlsByKey[spec[\key]] = control;
             control;
-        };
-
-        fxColumns = fxGroups.collect { |groupSpecs|
-            var columnControls = groupSpecs.collect { |spec| fxControlsByKey[spec[\key]] };
-            var columnView = CompositeView(fxSection)
-                .background_(sectionColor);
-            columnView.layout_(VLayout(2,
-                *(columnControls.collect { |control| [control[\container], 0] })
-            ).margins_(0));
-            columnView;
         };
 
         fxColumnsContainer = CompositeView(fxSection)
@@ -1024,7 +1012,7 @@
         ).margins_(4));
 
         fxColumnsContainer.layout_(HLayout(6,
-            *(fxColumns.collect { |column| [column, 1] })
+            *(fxSpecs.collect { |spec| [fxControlsByKey[spec[\key]][\container], 0] })
         ).margins_(0));
 
         fxSection.layout_(VLayout(4,
