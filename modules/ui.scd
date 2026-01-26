@@ -239,7 +239,8 @@
 
     effectsViews = ~mixInputs.collect { |cfg, index|
         var effectsContainer, headerSection, headerLabel;
-        var fxSection, fxHeader, fxHeaderText, fxControls, fxControlsByKey, fxColumns, fxColumnsContainer;
+        var fxSection, fxHeader, fxHeaderText, fxControls, fxControlsByKey;
+        var fxColumnsContainer, fxRowCount, fxControlsPerRow, fxRows;
         var greyholeSection, greyholeHeader, greyholeHeaderText, greyholeControls, greyholeColumns, greyholeColumnsContainer;
         var chorusSection, chorusHeader, chorusHeaderText, chorusControls;
         var auxSection, auxHeaderText, auxSendSlider;
@@ -334,8 +335,19 @@
             control;
         };
 
+        fxRowCount = (fxSpecs.size / 10).ceil.max(1);
+        fxControlsPerRow = (fxSpecs.size / fxRowCount).ceil;
+
         fxColumnsContainer = CompositeView(fxSection)
             .background_(sectionColor);
+        fxRows = fxControls.clump(fxControlsPerRow).collect { |rowControls|
+            var rowView = CompositeView(fxColumnsContainer)
+                .background_(sectionColor);
+            rowView.layout_(HLayout(6,
+                *(rowControls.collect { |control| [control[\container], 0] })
+            ).margins_(0));
+            rowView;
+        };
 
         greyholeControls = greyholeSpecs.collect { |spec|
             var container, slider, labelView;
@@ -404,8 +416,8 @@
             [fxHeaderText, 1]
         ).margins_(4));
 
-        fxColumnsContainer.layout_(HLayout(6,
-            *(fxSpecs.collect { |spec| [fxControlsByKey[spec[\key]][\container], 0] })
+        fxColumnsContainer.layout_(VLayout(6,
+            *(fxRows.collect { |row| [row, 0] })
         ).margins_(0));
 
         fxSection.layout_(VLayout(4,
@@ -846,7 +858,8 @@
 
     drumEffectsViews = ~drumInputs.collect { |cfg, index|
         var effectsContainer, headerSection, headerLabel;
-        var fxSection, fxHeader, fxHeaderText, fxControls, fxControlsByKey, fxColumns, fxColumnsContainer;
+        var fxSection, fxHeader, fxHeaderText, fxControls, fxControlsByKey;
+        var fxColumnsContainer, fxRowCount, fxControlsPerRow, fxRows;
         var greyholeSection, greyholeHeader, greyholeHeaderText, greyholeControls, greyholeColumns, greyholeColumnsContainer;
         var chorusSection, chorusHeader, chorusHeaderText, chorusControls;
         var auxSection, auxHeaderText, auxSendSlider;
@@ -941,8 +954,19 @@
             control;
         };
 
+        fxRowCount = (fxSpecs.size / 10).ceil.max(1);
+        fxControlsPerRow = (fxSpecs.size / fxRowCount).ceil;
+
         fxColumnsContainer = CompositeView(fxSection)
             .background_(sectionColor);
+        fxRows = fxControls.clump(fxControlsPerRow).collect { |rowControls|
+            var rowView = CompositeView(fxColumnsContainer)
+                .background_(sectionColor);
+            rowView.layout_(HLayout(6,
+                *(rowControls.collect { |control| [control[\container], 0] })
+            ).margins_(0));
+            rowView;
+        };
 
         greyholeControls = greyholeSpecs.collect { |spec|
             var container, slider, labelView;
@@ -1011,8 +1035,8 @@
             [fxHeaderText, 1]
         ).margins_(4));
 
-        fxColumnsContainer.layout_(HLayout(6,
-            *(fxSpecs.collect { |spec| [fxControlsByKey[spec[\key]][\container], 0] })
+        fxColumnsContainer.layout_(VLayout(6,
+            *(fxRows.collect { |row| [row, 0] })
         ).margins_(0));
 
         fxSection.layout_(VLayout(4,
