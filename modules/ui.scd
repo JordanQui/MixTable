@@ -272,17 +272,18 @@
             container = CompositeView(fxSection)
                 .background_(panelColor);
             slider = Slider(container)
-                .orientation_(\horizontal)
+                .orientation_(\vertical)
+                .minHeight_(120)
                 .background_(sectionColor)
                 .knobColor_(accentColor);
             labelView = StaticText(container)
                 .string_(spec[\label])
-                .align_(\left)
+                .align_(\center)
                 .stringColor_(Color.white)
                 .font_(Font(Font.defaultSansFace, 9));
-            container.layout_(HLayout(4,
-                [slider, 1],
-                [labelView, 0]
+            container.layout_(VLayout(4,
+                [labelView, 0],
+                [slider, 1]
             ).margins_(2));
             slider.action = { |sl|
                 var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
@@ -880,17 +881,18 @@
             container = CompositeView(fxSection)
                 .background_(panelColor);
             slider = Slider(container)
-                .orientation_(\horizontal)
+                .orientation_(\vertical)
+                .minHeight_(120)
                 .background_(sectionColor)
                 .knobColor_(accentColor);
             labelView = StaticText(container)
                 .string_(spec[\label])
-                .align_(\left)
+                .align_(\center)
                 .stringColor_(Color.white)
                 .font_(Font(Font.defaultSansFace, 9));
-            container.layout_(HLayout(4,
-                [slider, 1],
-                [labelView, 0]
+            container.layout_(VLayout(4,
+                [labelView, 0],
+                [slider, 1]
             ).margins_(2));
             slider.action = { |sl|
                 var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
