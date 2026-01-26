@@ -1,7 +1,7 @@
 ~createUI = {
-    var window, channelArea, channelViews, masterColumn, layoutColumns, layoutRows;
+    var window, channelArea, channelViews, masterColumn, layoutColumns;
     var effectsWindow, effectsArea, effectsViews, effectsColumns;
-    var drumWindow, drumChannelArea, drumChannelViews, drumColumns, drumRows;
+    var drumWindow, drumChannelArea, drumChannelViews, drumColumns;
     var drumEffectsWindow, drumEffectsArea, drumEffectsViews;
     var windowColor = Color(0.08, 0.08, 0.1);
     var panelColor = Color(0.12, 0.12, 0.16);
@@ -218,7 +218,7 @@
 
     effectsViews = ~mixInputs.collect { |cfg, index|
         var effectsContainer, headerSection, headerLabel;
-        var fxSection, fxHeader, fxHeaderText, fxControls, fxColumnsContainer;
+        var fxSection, fxHeader, fxHeaderText, fxControls, fxControlsByKey, fxColumns, fxColumnsContainer;
         var greyholeSection, greyholeHeader, greyholeHeaderText, greyholeControls, greyholeColumns, greyholeColumnsContainer;
         var chorusSection, chorusHeader, chorusHeaderText, chorusControls;
         var auxSection, auxHeaderText, auxSendSlider;
@@ -280,6 +280,7 @@
             .stringColor_(Color.white)
             .font_(Font(Font.defaultSansFace, 10, true));
 
+        fxControlsByKey = IdentityDictionary.new;
         fxControls = fxSpecs.collect { |spec|
             var container, slider, labelView;
             var control;
@@ -303,7 +304,19 @@
                 var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
                 ~setChannelFx.value(index, spec[\key], value);
             };
-            (container: container, slider: slider, spec: spec);
+            control = (container: container, slider: slider, spec: spec);
+            fxControlsByKey[spec[\key]] = control;
+            control;
+        };
+
+        fxColumns = fxGroups.collect { |groupSpecs|
+            var columnControls = groupSpecs.collect { |spec| fxControlsByKey[spec[\key]] };
+            var columnView = CompositeView(fxSection)
+                .background_(sectionColor);
+            columnView.layout_(VLayout(2,
+                *(columnControls.collect { |control| [control[\container], 0] })
+            ).margins_(0));
+            columnView;
         };
 
         fxColumnsContainer = CompositeView(fxSection)
@@ -377,7 +390,7 @@
         ).margins_(4));
 
         fxColumnsContainer.layout_(HLayout(6,
-            *(fxControls.collect { |control| [control[\container], 1] })
+            *(fxColumns.collect { |column| [column, 1] })
         ).margins_(0));
 
         fxSection.layout_(VLayout(4,
@@ -644,12 +657,8 @@
         [control[\container], 1]
     };
     layoutColumns = layoutColumns.add([masterColumn, 0]);
-    layoutRows = layoutColumns.clump(6).collect { |row|
-        HLayout(10, *row)
-    };
-
-    channelArea.layout_(VLayout(10,
-        *(layoutRows.collect { |row| [row, 1] })
+    channelArea.layout_(HLayout(10,
+        *layoutColumns
     ).margins_(10));
 
     window.layout_(VLayout(10,
@@ -822,7 +831,7 @@
 
     drumEffectsViews = ~drumInputs.collect { |cfg, index|
         var effectsContainer, headerSection, headerLabel;
-        var fxSection, fxHeader, fxHeaderText, fxControls, fxColumnsContainer;
+        var fxSection, fxHeader, fxHeaderText, fxControls, fxControlsByKey, fxColumns, fxColumnsContainer;
         var greyholeSection, greyholeHeader, greyholeHeaderText, greyholeControls, greyholeColumns, greyholeColumnsContainer;
         var chorusSection, chorusHeader, chorusHeaderText, chorusControls;
         var auxSection, auxHeaderText, auxSendSlider;
@@ -884,6 +893,7 @@
             .stringColor_(Color.white)
             .font_(Font(Font.defaultSansFace, 10, true));
 
+        fxControlsByKey = IdentityDictionary.new;
         fxControls = fxSpecs.collect { |spec|
             var container, slider, labelView;
             var control;
@@ -907,7 +917,19 @@
                 var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
                 ~setDrumFx.value(index, spec[\key], value);
             };
-            (container: container, slider: slider, spec: spec);
+            control = (container: container, slider: slider, spec: spec);
+            fxControlsByKey[spec[\key]] = control;
+            control;
+        };
+
+        fxColumns = fxGroups.collect { |groupSpecs|
+            var columnControls = groupSpecs.collect { |spec| fxControlsByKey[spec[\key]] };
+            var columnView = CompositeView(fxSection)
+                .background_(sectionColor);
+            columnView.layout_(VLayout(2,
+                *(columnControls.collect { |control| [control[\container], 0] })
+            ).margins_(0));
+            columnView;
         };
 
         fxColumnsContainer = CompositeView(fxSection)
@@ -981,7 +1003,7 @@
         ).margins_(4));
 
         fxColumnsContainer.layout_(HLayout(6,
-            *(fxControls.collect { |control| [control[\container], 1] })
+            *(fxColumns.collect { |column| [column, 1] })
         ).margins_(0));
 
         fxSection.layout_(VLayout(4,
@@ -1067,12 +1089,8 @@
     drumColumns = drumChannelViews.collect { |control|
         [control[\container], 1]
     };
-    drumRows = drumColumns.clump(6).collect { |row|
-        HLayout(10, *row)
-    };
-
-    drumChannelArea.layout_(VLayout(10,
-        *(drumRows.collect { |row| [row, 1] })
+    drumChannelArea.layout_(HLayout(10,
+        *drumColumns
     ).margins_(10));
 
     drumEffectsArea.layout_(HLayout(10,
