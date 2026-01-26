@@ -60,7 +60,7 @@ SynthDef(\mixChannel, {
     preHpfFreq = 30, preLowShelfFreq = 120, preLowShelfGain = 0,
     monoBassFreq = 120,
     autopanRate = 0.08, autopanDepth = 0.4,
-    haasDelay = 0.012, haasMix = 0.2, haasHighFreq = 700,
+    haasDelayL = 0.012, haasDelayR = 0.012, haasMix = 0.2, haasHighFreq = 700,
     allpassMix = 0.25, allpassTime = 0.012, allpassDecay = 0.1,
     ghSideBias = 0.6,
     sideHpfFreq = 150,
@@ -91,8 +91,11 @@ SynthDef(\mixChannel, {
     panLfo = SinOsc.kr(autopanRate.clip(0.01, 2), 0, autopanDepth.clip(0, 1));
     highBand = Balance2.ar(highBand[0], highBand[1], panLfo);
     haasBand = HPF.ar(highBand, haasHighFreq.clip(200, 4000));
-    haasDelayed = DelayC.ar(haasBand[1], 0.05, haasDelay.clip(0.001, 0.03));
-    haasBlend = XFade2.ar(haasBand, [haasBand[0], haasDelayed], (haasMix.clip(0, 1) * 2) - 1);
+    haasDelayed = DelayC.ar(haasBand, 0.05, [
+        haasDelayL.clip(0.001, 0.03),
+        haasDelayR.clip(0.001, 0.03)
+    ]);
+    haasBlend = XFade2.ar(haasBand, haasDelayed, (haasMix.clip(0, 1) * 2) - 1);
     highBand = (highBand - haasBand) + haasBlend;
     sig = monoLow + highBand;
     chorusDelay = SinOsc.kr([0.23, 0.27], 0, chorusDepth.clip(0, 1) * 0.02 + 0.001, 0.005)
@@ -156,6 +159,63 @@ SynthDef(\mixChannel, {
     mid2: (freqKey: \mid2Freq, gainKey: \mid2Gain, qKey: \mid2RQ),
     high: (freqKey: \highFreq, gainKey: \highGain, qKey: \highRQ),
     wide: (freqKey: \wideFreq, gainKey: \wideGain, qKey: \wideRQ)
+);
+
+~fxDefaults = (
+    preHpfFreq: 30,
+    preLowShelfFreq: 120,
+    preLowShelfGain: 0,
+    monoBassFreq: 120,
+    autopanRate: 0.08,
+    autopanDepth: 0.4,
+    haasDelayL: 0.012,
+    haasDelayR: 0.012,
+    haasMix: 0.2,
+    haasHighFreq: 700,
+    allpassMix: 0.25,
+    allpassTime: 0.012,
+    allpassDecay: 0.1,
+    ghSideBias: 0.6,
+    sideHpfFreq: 150,
+    satDrive: 0.2
+);
+
+~fxParamMap = (
+    preHpfFreq: \preHpfFreq,
+    preLowShelfFreq: \preLowShelfFreq,
+    preLowShelfGain: \preLowShelfGain,
+    monoBassFreq: \monoBassFreq,
+    autopanRate: \autopanRate,
+    autopanDepth: \autopanDepth,
+    haasDelayL: \haasDelayL,
+    haasDelayR: \haasDelayR,
+    haasMix: \haasMix,
+    haasHighFreq: \haasHighFreq,
+    allpassMix: \allpassMix,
+    allpassTime: \allpassTime,
+    allpassDecay: \allpassDecay,
+    ghSideBias: \ghSideBias,
+    sideHpfFreq: \sideHpfFreq,
+    satDrive: \satDrive
+);
+
+~fxRanges = (
+    preHpfFreq: [10, 200],
+    preLowShelfFreq: [40, 300],
+    preLowShelfGain: [-12, 12],
+    monoBassFreq: [60, 200],
+    autopanRate: [0.01, 2],
+    autopanDepth: [0, 1],
+    haasDelayL: [0.001, 0.03],
+    haasDelayR: [0.001, 0.03],
+    haasMix: [0, 1],
+    haasHighFreq: [200, 4000],
+    allpassMix: [0, 1],
+    allpassTime: [0.001, 0.03],
+    allpassDecay: [0.01, 1],
+    ghSideBias: [0, 1],
+    sideHpfFreq: [80, 300],
+    satDrive: [0, 2]
 );
 
 ~greyholeDefaults = (
@@ -261,6 +321,7 @@ SynthDef(\mixChannel, {
             eq: eqState,
             muted: 0,
             aux: 0,
+            fx: ~fxDefaults.copy,
             greyhole: ~greyholeDefaults.copy
         );
     });
@@ -275,6 +336,7 @@ SynthDef(\mixChannel, {
             eq: eqState,
             muted: 0,
             aux: 0,
+            fx: ~fxDefaults.copy,
             greyhole: ~greyholeDefaults.copy
         );
     });
@@ -290,6 +352,7 @@ SynthDef(\mixChannel, {
 
     ~channelSynths = ~mixInputs.collect { |cfg, index|
         var state = ~channelStates[index];
+        var fxState = state[\fx] ?? { ~fxDefaults.copy };
         Synth(\mixChannel, [
             \inA, cfg[\channels][0],
             \inB, cfg[\channels][1],
@@ -297,6 +360,22 @@ SynthDef(\mixChannel, {
             \outBus, ~mixBus,
             \auxBus, ~auxBus,
             \gainAmp, state[\gainDB].dbamp,
+            \preHpfFreq, fxState[\preHpfFreq],
+            \preLowShelfFreq, fxState[\preLowShelfFreq],
+            \preLowShelfGain, fxState[\preLowShelfGain],
+            \monoBassFreq, fxState[\monoBassFreq],
+            \autopanRate, fxState[\autopanRate],
+            \autopanDepth, fxState[\autopanDepth],
+            \haasDelayL, fxState[\haasDelayL],
+            \haasDelayR, fxState[\haasDelayR],
+            \haasMix, fxState[\haasMix],
+            \haasHighFreq, fxState[\haasHighFreq],
+            \allpassMix, fxState[\allpassMix],
+            \allpassTime, fxState[\allpassTime],
+            \allpassDecay, fxState[\allpassDecay],
+            \ghSideBias, fxState[\ghSideBias],
+            \sideHpfFreq, fxState[\sideHpfFreq],
+            \satDrive, fxState[\satDrive],
             \chorusDepth, state[\greyhole][\chorusDepth],
             \chorusDryWet, state[\greyhole][\chorusDryWet],
             \chorusFeedback, state[\greyhole][\chorusFeedback],
@@ -332,6 +411,7 @@ SynthDef(\mixChannel, {
 
     ~drumSynths = ~drumInputs.collect { |cfg, index|
         var state = ~drumStates[index];
+        var fxState = state[\fx] ?? { ~fxDefaults.copy };
         Synth(\mixChannel, [
             \inA, cfg[\channels][0],
             \inB, cfg[\channels][1],
@@ -339,6 +419,22 @@ SynthDef(\mixChannel, {
             \outBus, ~mixBus,
             \auxBus, ~auxBus,
             \gainAmp, state[\gainDB].dbamp,
+            \preHpfFreq, fxState[\preHpfFreq],
+            \preLowShelfFreq, fxState[\preLowShelfFreq],
+            \preLowShelfGain, fxState[\preLowShelfGain],
+            \monoBassFreq, fxState[\monoBassFreq],
+            \autopanRate, fxState[\autopanRate],
+            \autopanDepth, fxState[\autopanDepth],
+            \haasDelayL, fxState[\haasDelayL],
+            \haasDelayR, fxState[\haasDelayR],
+            \haasMix, fxState[\haasMix],
+            \haasHighFreq, fxState[\haasHighFreq],
+            \allpassMix, fxState[\allpassMix],
+            \allpassTime, fxState[\allpassTime],
+            \allpassDecay, fxState[\allpassDecay],
+            \ghSideBias, fxState[\ghSideBias],
+            \sideHpfFreq, fxState[\sideHpfFreq],
+            \satDrive, fxState[\satDrive],
             \chorusDepth, state[\greyhole][\chorusDepth],
             \chorusDryWet, state[\greyhole][\chorusDryWet],
             \chorusFeedback, state[\greyhole][\chorusFeedback],
@@ -436,6 +532,22 @@ SynthDef(\mixChannel, {
         };
     };
 
+    ~setChannelFx = { |index, param, value|
+        if((index >= 0) and: { index < ~channelSynths.size }) {
+            var synth = ~channelSynths[index];
+            var state = ~channelStates[index][\fx] ?? { ~fxDefaults.copy };
+            var key = ~fxParamMap[param];
+            var range = ~fxRanges[param];
+
+            if(key.notNil and: { range.notNil } and: { value.notNil }) {
+                var clipped = value.clip(range[0], range[1]);
+                state[param] = clipped;
+                synth.tryPerform(\set, key, clipped);
+                ~channelStates[index][\fx] = state;
+            };
+        };
+    };
+
     ~setChannelGreyhole = { |index, param, value|
         if((index >= 0) and: { index < ~channelSynths.size }) {
             var synth = ~channelSynths[index];
@@ -507,6 +619,22 @@ SynthDef(\mixChannel, {
             var level = send.clip(0, 1);
             ~drumStates[index][\aux] = level;
             synth.tryPerform(\set, \auxLevel, level);
+        };
+    };
+
+    ~setDrumFx = { |index, param, value|
+        if((index >= 0) and: { index < ~drumSynths.size }) {
+            var synth = ~drumSynths[index];
+            var state = ~drumStates[index][\fx] ?? { ~fxDefaults.copy };
+            var key = ~fxParamMap[param];
+            var range = ~fxRanges[param];
+
+            if(key.notNil and: { range.notNil } and: { value.notNil }) {
+                var clipped = value.clip(range[0], range[1]);
+                state[param] = clipped;
+                synth.tryPerform(\set, key, clipped);
+                ~drumStates[index][\fx] = state;
+            };
         };
     };
 
@@ -603,7 +731,7 @@ SynthDef(\mixChannel, {
             ~eqDefaults.keysValuesDo { |band, defaults|
                 eqState[band] = defaults.copy;
             };
-            (gainDB: 0, eq: eqState, muted: 0, aux: 0, greyhole: ~greyholeDefaults.copy);
+            (gainDB: 0, eq: eqState, muted: 0, aux: 0, fx: ~fxDefaults.copy, greyhole: ~greyholeDefaults.copy);
         };
     };
 
@@ -613,7 +741,7 @@ SynthDef(\mixChannel, {
             ~eqDefaults.keysValuesDo { |band, defaults|
                 eqState[band] = defaults.copy;
             };
-            (gainDB: 0, eq: eqState, muted: 0, aux: 0, greyhole: ~greyholeDefaults.copy);
+            (gainDB: 0, eq: eqState, muted: 0, aux: 0, fx: ~fxDefaults.copy, greyhole: ~greyholeDefaults.copy);
         };
     };
 
