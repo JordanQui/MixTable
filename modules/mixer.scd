@@ -50,7 +50,7 @@ SynthDef(\reverbReturn, {
     (label: "HH2 17 / 18", channels: [24, 25], isMono: 0),
     (label: "Snare 19 / 20", channels: [26, 27], isMono: 0),
     (label: "Snare 21 / 22", channels: [28, 29], isMono: 0),
-    (label: "Cymbal 23 / 24", channels: [30, 31], isMono: 0)
+    (label: "Cymbal 31 / 32", channels: [30, 31], isMono: 0)
 ];
 
 // SynthDef pour chaque tranche d'entrée avec égalisation 4 bandes
@@ -572,8 +572,8 @@ SynthDef(\mixChannel, {
         \highGain, ~masterEqState[\high][\gain]
     ], target: ~outputGroup, addAction: \addToHead);
     ~stereoInputSynth = Synth(\stereoInput, [
-        \inA, 30,
-        \inB, 31,
+        \inA, 32,
+        \inB, 33,
         \outBus, ~masterBus,
         \gainDB, ~stereoInputState[\gainDB]
     ], target: ~inputGroup, addAction: \addToHead);
