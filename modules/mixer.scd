@@ -162,22 +162,22 @@ SynthDef(\mixChannel, {
 );
 
 ~fxDefaults = (
-    preHpfFreq: 30,
+    preHpfFreq: 10,
     preLowShelfFreq: 120,
     preLowShelfGain: 0,
-    monoBassFreq: 120,
+    monoBassFreq: 60,
     autopanRate: 0.08,
-    autopanDepth: 0.4,
+    autopanDepth: 0,
     haasDelayL: 0.012,
     haasDelayR: 0.012,
-    haasMix: 0.2,
+    haasMix: 0,
     haasHighFreq: 700,
-    allpassMix: 0.25,
+    allpassMix: 0,
     allpassTime: 0.012,
     allpassDecay: 0.1,
     ghSideBias: 0.6,
-    sideHpfFreq: 150,
-    satDrive: 0.2
+    sideHpfFreq: 80,
+    satDrive: 0
 );
 
 ~fxParamMap = (

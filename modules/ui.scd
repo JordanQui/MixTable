@@ -31,24 +31,37 @@
         (key: \chorusDryWet, label: "Mix", range: [0, 1]),
         (key: \chorusFeedback, label: "Feedbk", range: [0, 1])
     ];
-    var fxSpecs = [
-        (key: \preHpfFreq, label: "HPF", range: [10, 200]),
-        (key: \preLowShelfFreq, label: "LowShelf F", range: [40, 300]),
-        (key: \preLowShelfGain, label: "LowShelf G", range: [-12, 12]),
-        (key: \monoBassFreq, label: "Mono Bass", range: [60, 200]),
-        (key: \autopanRate, label: "Pan Rate", range: [0.01, 2]),
-        (key: \autopanDepth, label: "Pan Depth", range: [0, 1]),
-        (key: \haasDelayL, label: "Haas L", range: [0.001, 0.03]),
-        (key: \haasDelayR, label: "Haas R", range: [0.001, 0.03]),
-        (key: \haasMix, label: "Haas Mix", range: [0, 1]),
-        (key: \haasHighFreq, label: "Haas HPF", range: [200, 4000]),
-        (key: \allpassMix, label: "Allpass Mix", range: [0, 1]),
-        (key: \allpassTime, label: "Allpass T", range: [0.001, 0.03]),
-        (key: \allpassDecay, label: "Allpass Dec", range: [0.01, 1]),
-        (key: \ghSideBias, label: "Side Bias", range: [0, 1]),
-        (key: \sideHpfFreq, label: "Side HPF", range: [80, 300]),
-        (key: \satDrive, label: "Sat Drive", range: [0, 2])
+    var fxGroups = [
+        [
+            (key: \preHpfFreq, label: "HPF", range: [10, 200]),
+            (key: \preLowShelfFreq, label: "LowShelf F", range: [40, 300]),
+            (key: \preLowShelfGain, label: "LowShelf G", range: [-12, 12]),
+            (key: \monoBassFreq, label: "Mono Bass", range: [60, 200])
+        ],
+        [
+            (key: \autopanRate, label: "Pan Rate", range: [0.01, 2]),
+            (key: \autopanDepth, label: "Pan Depth", range: [0, 1])
+        ],
+        [
+            (key: \haasDelayL, label: "Haas L", range: [0.001, 0.03]),
+            (key: \haasDelayR, label: "Haas R", range: [0.001, 0.03]),
+            (key: \haasMix, label: "Haas Mix", range: [0, 1]),
+            (key: \haasHighFreq, label: "Haas HPF", range: [200, 4000])
+        ],
+        [
+            (key: \allpassMix, label: "Allpass Mix", range: [0, 1]),
+            (key: \allpassTime, label: "Allpass T", range: [0.001, 0.03]),
+            (key: \allpassDecay, label: "Allpass Dec", range: [0.01, 1])
+        ],
+        [
+            (key: \ghSideBias, label: "Side Bias", range: [0, 1]),
+            (key: \sideHpfFreq, label: "Side HPF", range: [80, 300])
+        ],
+        [
+            (key: \satDrive, label: "Sat Drive", range: [0, 2])
+        ]
     ];
+    var fxSpecs = fxGroups.flat;
 
     if(~mixWindow.notNil) { ~mixWindow.close };
     if(~effectsWindow.notNil) { ~effectsWindow.close };
@@ -205,7 +218,7 @@
 
     effectsViews = ~mixInputs.collect { |cfg, index|
         var effectsContainer, headerSection, headerLabel;
-        var fxSection, fxHeader, fxHeaderText, fxControls, fxColumns, fxColumnsContainer;
+        var fxSection, fxHeader, fxHeaderText, fxControls, fxControlsByKey, fxColumns, fxColumnsContainer;
         var greyholeSection, greyholeHeader, greyholeHeaderText, greyholeControls, greyholeColumns, greyholeColumnsContainer;
         var chorusSection, chorusHeader, chorusHeaderText, chorusControls;
         var auxSection, auxHeaderText, auxSendSlider;
@@ -267,8 +280,10 @@
             .stringColor_(Color.white)
             .font_(Font(Font.defaultSansFace, 10, true));
 
+        fxControlsByKey = IdentityDictionary.new;
         fxControls = fxSpecs.collect { |spec|
             var container, slider, labelView;
+            var control;
             container = CompositeView(fxSection)
                 .background_(panelColor);
             slider = Slider(container)
@@ -289,10 +304,13 @@
                 var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
                 ~setChannelFx.value(index, spec[\key], value);
             };
-            (container: container, slider: slider, spec: spec);
+            control = (container: container, slider: slider, spec: spec);
+            fxControlsByKey[spec[\key]] = control;
+            control;
         };
 
-        fxColumns = fxControls.clump(4).collect { |columnControls|
+        fxColumns = fxGroups.collect { |groupSpecs|
+            var columnControls = groupSpecs.collect { |spec| fxControlsByKey[spec[\key]] };
             var columnView = CompositeView(fxSection)
                 .background_(sectionColor);
             columnView.layout_(VLayout(2,
@@ -814,7 +832,7 @@
 
     drumEffectsViews = ~drumInputs.collect { |cfg, index|
         var effectsContainer, headerSection, headerLabel;
-        var fxSection, fxHeader, fxHeaderText, fxControls, fxColumns, fxColumnsContainer;
+        var fxSection, fxHeader, fxHeaderText, fxControls, fxControlsByKey, fxColumns, fxColumnsContainer;
         var greyholeSection, greyholeHeader, greyholeHeaderText, greyholeControls, greyholeColumns, greyholeColumnsContainer;
         var chorusSection, chorusHeader, chorusHeaderText, chorusControls;
         var auxSection, auxHeaderText, auxSendSlider;
@@ -876,8 +894,10 @@
             .stringColor_(Color.white)
             .font_(Font(Font.defaultSansFace, 10, true));
 
+        fxControlsByKey = IdentityDictionary.new;
         fxControls = fxSpecs.collect { |spec|
             var container, slider, labelView;
+            var control;
             container = CompositeView(fxSection)
                 .background_(panelColor);
             slider = Slider(container)
@@ -898,10 +918,13 @@
                 var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
                 ~setDrumFx.value(index, spec[\key], value);
             };
-            (container: container, slider: slider, spec: spec);
+            control = (container: container, slider: slider, spec: spec);
+            fxControlsByKey[spec[\key]] = control;
+            control;
         };
 
-        fxColumns = fxControls.clump(4).collect { |columnControls|
+        fxColumns = fxGroups.collect { |groupSpecs|
+            var columnControls = groupSpecs.collect { |spec| fxControlsByKey[spec[\key]] };
             var columnView = CompositeView(fxSection)
                 .background_(sectionColor);
             columnView.layout_(VLayout(2,
