@@ -1,7 +1,7 @@
 ~createUI = {
-    var window, channelArea, channelViews, masterColumn, layoutColumns;
+    var window, channelArea, channelViews, masterColumn, layoutColumns, layoutRows;
     var effectsWindow, effectsArea, effectsViews, effectsColumns;
-    var drumWindow, drumChannelArea, drumChannelViews, drumColumns;
+    var drumWindow, drumChannelArea, drumChannelViews, drumColumns, drumRows;
     var drumEffectsWindow, drumEffectsArea, drumEffectsViews;
     var windowColor = Color(0.08, 0.08, 0.1);
     var panelColor = Color(0.12, 0.12, 0.16);
@@ -644,9 +644,12 @@
         [control[\container], 1]
     };
     layoutColumns = layoutColumns.add([masterColumn, 0]);
+    layoutRows = layoutColumns.clump(6).collect { |row|
+        HLayout(10, *row)
+    };
 
-    channelArea.layout_(HLayout(10,
-        *layoutColumns
+    channelArea.layout_(VLayout(10,
+        *(layoutRows.collect { |row| [row, 1] })
     ).margins_(10));
 
     window.layout_(VLayout(10,
@@ -1064,9 +1067,12 @@
     drumColumns = drumChannelViews.collect { |control|
         [control[\container], 1]
     };
+    drumRows = drumColumns.clump(6).collect { |row|
+        HLayout(10, *row)
+    };
 
-    drumChannelArea.layout_(HLayout(10,
-        *drumColumns
+    drumChannelArea.layout_(VLayout(10,
+        *(drumRows.collect { |row| [row, 1] })
     ).margins_(10));
 
     drumEffectsArea.layout_(HLayout(10,
