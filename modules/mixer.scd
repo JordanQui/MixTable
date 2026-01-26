@@ -57,6 +57,14 @@ SynthDef(\reverbReturn, {
 SynthDef(\mixChannel, {
     |inA = 0, inB = 1, isMono = 0, outBus = 0, auxBus = 0,
     gainAmp = 1, mute = 0, auxLevel = 0,
+    preHpfFreq = 30, preLowShelfFreq = 120, preLowShelfGain = 0,
+    monoBassFreq = 120,
+    autopanRate = 0.08, autopanDepth = 0.4,
+    haasDelay = 0.012, haasMix = 0.2, haasHighFreq = 700,
+    allpassMix = 0.25, allpassTime = 0.012, allpassDecay = 0.1,
+    ghSideBias = 0.6,
+    sideHpfFreq = 150,
+    satDrive = 0.2,
     chorusDepth = 0.01, chorusDryWet = 0, chorusFeedback = 0.2,
     dryWet = 0, ghDelayTime = 1.5, ghDamp = 0.2, ghSize = 1, ghDiff = 0.7,
     ghFeedback = 0.3, ghModDepth = 0.1, ghModFreq = 1, ghEarlyDiff = 0.7, ghSpread = 0.8,
@@ -66,13 +74,35 @@ SynthDef(\mixChannel, {
     highFreq = 8000, highRQ = 1, highGain = 0,
     wideFreq = 1200, wideRQ = 1, wideGain = 0|
     var stereo, mono, sig, muteLevel, chorusDelay, chorusWet, greyholeWet, postFader;
+    var lowBand, highBand, monoLow, panLfo;
+    var haasBand, haasDelayed, haasBlend;
+    var allpassWet;
+    var midDry, sideDry, midWet, sideWet, midMix, sideMix;
+    var drive;
     stereo = SoundIn.ar([inA, inB]);
     mono = SoundIn.ar(inA) ! 2;
     sig = (stereo * (1 - isMono)) + (mono * isMono);
+    sig = LeakDC.ar(sig);
+    sig = HPF.ar(sig, preHpfFreq.clip(10, 200));
+    sig = BLowShelf.ar(sig, preLowShelfFreq.clip(40, 300), 1, preLowShelfGain);
+    lowBand = LPF.ar(sig, monoBassFreq.clip(60, 200));
+    highBand = HPF.ar(sig, monoBassFreq.clip(60, 200));
+    monoLow = (lowBand.sum * 0.5) ! 2;
+    panLfo = SinOsc.kr(autopanRate.clip(0.01, 2), 0, autopanDepth.clip(0, 1));
+    highBand = Balance2.ar(highBand[0], highBand[1], panLfo);
+    haasBand = HPF.ar(highBand, haasHighFreq.clip(200, 4000));
+    haasDelayed = DelayC.ar(haasBand[1], 0.05, haasDelay.clip(0.001, 0.03));
+    haasBlend = XFade2.ar(haasBand, [haasBand[0], haasDelayed], (haasMix.clip(0, 1) * 2) - 1);
+    highBand = (highBand - haasBand) + haasBlend;
+    sig = monoLow + highBand;
     chorusDelay = SinOsc.kr([0.23, 0.27], 0, chorusDepth.clip(0, 1) * 0.02 + 0.001, 0.005)
         .clip(0.001, 0.03);
     chorusWet = DelayC.ar(sig + (sig * chorusFeedback.clip(0, 1.2)), 0.05, chorusDelay);
     sig = XFade2.ar(sig, chorusWet, (chorusDryWet.clip(0, 1) * 2) - 1);
+    allpassWet = AllpassC.ar(sig, 0.05, allpassTime.clip(0.001, 0.03), allpassDecay.clip(0.01, 1));
+    allpassWet = AllpassC.ar(allpassWet, 0.05, (allpassTime * 1.2).clip(0.001, 0.03), allpassDecay.clip(0.01, 1));
+    allpassWet = AllpassC.ar(allpassWet, 0.05, (allpassTime * 0.8).clip(0.001, 0.03), allpassDecay.clip(0.01, 1));
+    sig = XFade2.ar(sig, allpassWet, (allpassMix.clip(0, 1) * 2) - 1);
     greyholeWet = Greyhole.ar(
         sig,
         ghDelayTime.clip(0.01, 5),
@@ -85,7 +115,21 @@ SynthDef(\mixChannel, {
         ghEarlyDiff.clip(0, 1),
         ghSpread.clip(0, 1)
     );
-    sig = XFade2.ar(sig, greyholeWet, (dryWet.clip(0, 1) * 2) - 1);
+    midDry = (sig[0] + sig[1]) * 0.5;
+    sideDry = (sig[0] - sig[1]) * 0.5;
+    midWet = (greyholeWet[0] + greyholeWet[1]) * 0.5;
+    sideWet = (greyholeWet[0] - greyholeWet[1]) * 0.5;
+    midMix = dryWet.clip(0, 1) * (1 - ghSideBias.clip(0, 1));
+    sideMix = dryWet.clip(0, 1);
+    midDry = XFade2.ar(midDry, midWet, (midMix * 2) - 1);
+    sideDry = XFade2.ar(sideDry, sideWet, (sideMix * 2) - 1);
+    sig = [midDry + sideDry, midDry - sideDry];
+    midDry = (sig[0] + sig[1]) * 0.5;
+    sideDry = (sig[0] - sig[1]) * 0.5;
+    sideDry = HPF.ar(sideDry, sideHpfFreq.clip(80, 300));
+    sig = [midDry + sideDry, midDry - sideDry];
+    drive = 1 + satDrive.clip(0, 2);
+    sig = (sig * drive).tanh;
     sig = BLowShelf.ar(sig, lowFreq, lowRQ, lowGain.lag(0.1));
     sig = BPeakEQ.ar(sig, mid1Freq, mid1RQ, mid1Gain.lag(0.1));
     sig = BPeakEQ.ar(sig, mid2Freq, mid2RQ, mid2Gain.lag(0.1));
