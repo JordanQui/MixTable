@@ -1,6 +1,7 @@
 ~createUI = {
     var window, channelArea, channelViews, masterColumn, layoutColumns;
     var effectsWindow, effectsArea, effectsViews, effectsColumns;
+    var drumWindow, drumChannelArea, drumChannelViews, drumEffectsArea, drumEffectsViews, drumColumns;
     var windowColor = Color(0.08, 0.08, 0.1);
     var panelColor = Color(0.12, 0.12, 0.16);
     var sectionColor = Color(0.18, 0.18, 0.22);
@@ -435,7 +436,7 @@
             .background_(sectionColor);
 
         returnSliders = [
-            (key: \stereoInput, label: "In 19/20", action: { |value| ~setStereoInputGain.value(value); }),
+            (key: \stereoInput, label: "In 31/32", action: { |value| ~setStereoInputGain.value(value); }),
             (key: \reverbReturn, label: "Reverb Return", action: { |value| ~setReverbReturnGain.value(value); })
         ].collect { |spec|
             var sliderContainer, sliderView, labelView;
@@ -570,12 +571,355 @@
         [effectsArea, 1]
     ).margins_(10));
 
+    if(~drumWindow.notNil) { ~drumWindow.close };
+    drumWindow = Window("MixTable - Drums", Rect(100, 1390, 1800, 600));
+    if(drumWindow.respondsTo(\resizable_)) {
+        drumWindow.resizable_(true);
+    } {
+        if(drumWindow.respondsTo(\resizable)) {
+            drumWindow.resizable = true;
+        };
+    };
+    drumWindow.view.background_(windowColor);
+    ~drumWindow = drumWindow;
+
+    drumChannelArea = CompositeView(drumWindow)
+        .background_(windowColor);
+
+    drumChannelViews = ~drumInputs.collect { |cfg, index|
+        var channelContainer, gainSection, gainSlider, muteButton;
+        var eqArea, eqControls;
+
+        channelContainer = CompositeView(drumChannelArea)
+            .minWidth_(165)
+            .background_(panelColor);
+
+        gainSection = CompositeView(channelContainer)
+            .background_(sectionColor);
+
+        gainSlider = Slider(gainSection)
+            .orientation_(\vertical)
+            .minHeight_(160)
+            .background_(panelColor)
+            .knobColor_(accentColor);
+
+        muteButton = Button(gainSection)
+            .states_([
+                ["Mute", Color.white, Color(0.2, 0.2, 0.25)],
+                ["Muted", Color.white, mutedColor]
+            ])
+            .maxHeight_(28);
+
+        eqArea = CompositeView(channelContainer)
+            .minHeight_(320)
+            .background_(sectionColor);
+
+        eqControls = eqSpecs.collect { |spec|
+            var eqContainer, sliderRow, eqSlider, qSlider, qRange;
+
+            eqContainer = CompositeView(eqArea)
+                .background_(panelColor);
+            sliderRow = CompositeView(eqContainer)
+                .background_(panelColor);
+            eqSlider = Slider2D(sliderRow)
+                .minHeight_(110)
+                .background_(sectionColor)
+                .knobColor_(accentColor);
+            qSlider = Slider(sliderRow)
+                .orientation_(\vertical)
+                .minHeight_(110)
+                .background_(sectionColor)
+                .knobColor_(accentColor);
+
+            qRange = spec[\qRange] ?? { [0.2, 10] };
+
+            sliderRow.layout_(HLayout(6,
+                [eqSlider, 1],
+                [qSlider, 0]
+            ));
+
+            eqContainer.layout_(VLayout(6,
+                [sliderRow, 1]
+            ).margins_(4));
+
+            eqSlider.action = { |view|
+                var freq = view.x.linexp(0, 1, spec[\freqRange][0], spec[\freqRange][1]);
+                var gain = view.y.linlin(0, 1, spec[\gainRange][0], spec[\gainRange][1]);
+                var q = qSlider.value.linexp(0, 1, qRange[0], qRange[1]);
+                ~setDrumEq.value(index, spec[\band], freq, gain, q);
+            };
+
+            qSlider.action = { |slider|
+                var freq = eqSlider.x.linexp(0, 1, spec[\freqRange][0], spec[\freqRange][1]);
+                var gain = eqSlider.y.linlin(0, 1, spec[\gainRange][0], spec[\gainRange][1]);
+                var q = slider.value.linexp(0, 1, qRange[0], qRange[1]);
+                ~setDrumEq.value(index, spec[\band], freq, gain, q);
+            };
+
+            (container: eqContainer, slider: eqSlider, qSlider: qSlider, qRange: qRange, spec: spec);
+        };
+
+        eqArea.layout_(VLayout(6,
+            *(eqControls.collect { |control|
+                [control[\container], 1]
+            })
+        ).margins_(4));
+
+        gainSection.layout_(VLayout(6,
+            [gainSlider, 1],
+            [muteButton, 0]
+        ).margins_(4));
+
+        channelContainer.layout_(VLayout(2,
+            [gainSection, 1],
+            [eqArea, 3]
+        ).margins_(6));
+
+        {
+            var state = ~getDrumState.value(index);
+            var gainDB = state[\gainDB] ?? { 0 };
+            var sliderValue = gainDB.linlin(-60, 20, 0, 1).clip(0, 1);
+            var isMuted = state[\muted] ?? { 0 };
+            gainSlider.value_(sliderValue);
+            muteButton.value_(isMuted);
+
+            gainSlider.action = { |sl|
+                var db = sl.value.linlin(0, 1, -60, 20);
+                ~setDrumGain.value(index, db);
+            };
+
+            muteButton.action = { |btn|
+                var muted = btn.value.clip(0, 1);
+                ~setDrumMute.value(index, muted);
+            };
+
+            eqControls.do { |control|
+                var spec = control[\spec];
+                var eqState = state[\eq][spec[\band]] ?? { ~eqDefaults[spec[\band]].copy };
+                var x = eqState[\freq].linexp(spec[\freqRange][0], spec[\freqRange][1], 0, 1).clip(0, 1);
+                var y = eqState[\gain].linlin(spec[\gainRange][0], spec[\gainRange][1], 0, 1).clip(0, 1);
+                var qValue = (eqState[\q] ?? { 1 }).clip(control[\qRange][0], control[\qRange][1]);
+                var qSliderValue = qValue.explin(control[\qRange][0], control[\qRange][1], 0, 1).clip(0, 1);
+                control[\slider].setXY(x, y);
+                control[\qSlider].value_(qSliderValue);
+            };
+        }.value;
+
+        (container: channelContainer);
+    };
+
+    drumEffectsArea = CompositeView(drumWindow)
+        .background_(windowColor);
+
+    drumEffectsViews = ~drumInputs.collect { |cfg, index|
+        var effectsContainer, headerSection, headerLabel;
+        var greyholeSection, greyholeHeader, greyholeHeaderText, greyholeControls, greyholeColumns, greyholeColumnsContainer;
+        var chorusSection, chorusHeader, chorusHeaderText, chorusControls;
+        var auxSection, auxHeaderText, auxSendSlider;
+
+        effectsContainer = CompositeView(drumEffectsArea)
+            .minWidth_(200)
+            .background_(panelColor);
+
+        headerSection = CompositeView(effectsContainer)
+            .background_(panelColor);
+        headerLabel = StaticText(headerSection)
+            .string_("Canal " ++ (cfg[\label] ?? { (index + 1).asString }))
+            .align_(\center)
+            .stringColor_(Color.white)
+            .font_(Font(Font.defaultSansFace, 12, true));
+
+        greyholeSection = CompositeView(effectsContainer)
+            .background_(sectionColor);
+        greyholeHeader = CompositeView(greyholeSection)
+            .background_(panelColor);
+        greyholeHeaderText = StaticText(greyholeHeader)
+            .string_("Greyhole / Reverb")
+            .align_(\left)
+            .stringColor_(Color.white)
+            .font_(Font(Font.defaultSansFace, 10, true));
+
+        chorusSection = CompositeView(effectsContainer)
+            .background_(sectionColor);
+        chorusHeader = CompositeView(chorusSection)
+            .background_(panelColor);
+        chorusHeaderText = StaticText(chorusHeader)
+            .string_("Chorus")
+            .align_(\left)
+            .stringColor_(Color.white)
+            .font_(Font(Font.defaultSansFace, 10, true));
+
+        auxSection = CompositeView(effectsContainer)
+            .background_(sectionColor);
+        auxHeaderText = StaticText(auxSection)
+            .string_("Aux")
+            .align_(\left)
+            .stringColor_(Color.white)
+            .font_(Font(Font.defaultSansFace, 10, true));
+
+        auxSendSlider = Slider(auxSection)
+            .orientation_(\horizontal)
+            .minHeight_(12)
+            .maxHeight_(12)
+            .background_(panelColor)
+            .knobColor_(accentColor);
+
+        greyholeControls = greyholeSpecs.collect { |spec|
+            var container, slider, labelView;
+            container = CompositeView(greyholeSection)
+                .background_(panelColor);
+            slider = Slider(container)
+                .orientation_(\horizontal)
+                .background_(sectionColor)
+                .knobColor_(accentColor);
+            labelView = StaticText(container)
+                .string_(spec[\label])
+                .align_(\left)
+                .stringColor_(Color.white)
+                .font_(Font(Font.defaultSansFace, 9));
+            container.layout_(HLayout(4,
+                [slider, 1],
+                [labelView, 0]
+            ).margins_(2));
+            slider.action = { |sl|
+                var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
+                ~setDrumGreyhole.value(index, spec[\key], value);
+            };
+            (container: container, slider: slider, spec: spec);
+        };
+
+        greyholeColumns = greyholeControls.clump(5).collect { |columnControls|
+            var columnView = CompositeView(greyholeSection)
+                .background_(sectionColor);
+            columnView.layout_(VLayout(2,
+                *(columnControls.collect { |control| [control[\container], 0] })
+            ).margins_(0));
+            columnView;
+        };
+
+        chorusControls = chorusSpecs.collect { |spec|
+            var container, slider, labelView;
+            container = CompositeView(chorusSection)
+                .maxHeight_(24)
+                .background_(panelColor);
+            slider = Slider(container)
+                .orientation_(\horizontal)
+                .minHeight_(12)
+                .maxHeight_(12)
+                .background_(sectionColor)
+                .knobColor_(accentColor);
+            labelView = StaticText(container)
+                .string_(spec[\label])
+                .align_(\left)
+                .stringColor_(Color.white)
+                .font_(Font(Font.defaultSansFace, 9));
+            container.layout_(HLayout(4,
+                [slider, 1],
+                [labelView, 0]
+            ).margins_(2));
+            slider.action = { |sl|
+                var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
+                ~setDrumChorus.value(index, spec[\key], value);
+            };
+            (container: container, slider: slider, spec: spec);
+        };
+
+        greyholeColumnsContainer = CompositeView(greyholeSection)
+            .background_(sectionColor);
+
+        greyholeHeader.layout_(HLayout(4,
+            [greyholeHeaderText, 1]
+        ).margins_(4));
+
+        greyholeColumnsContainer.layout_(HLayout(6,
+            *(greyholeColumns.collect { |column| [column, 1] })
+        ).margins_(0));
+
+        greyholeSection.layout_(VLayout(4,
+            [greyholeHeader, 0],
+            [greyholeColumnsContainer, 1]
+        ).margins_(4));
+
+        chorusHeader.layout_(HLayout(4,
+            [chorusHeaderText, 1]
+        ).margins_(4));
+
+        chorusSection.layout_(VLayout(4,
+            [chorusHeader, 0],
+            *(chorusControls.collect { |control| [control[\container], 0] })
+        ).margins_(4));
+
+        auxSection.layout_(VLayout(4,
+            [auxHeaderText, 0],
+            [auxSendSlider, 0]
+        ).margins_(4));
+
+        headerSection.layout_(VLayout(2,
+            [headerLabel, 0]
+        ).margins_(4));
+
+        effectsContainer.layout_(VLayout(6,
+            [headerSection, 0],
+            [greyholeSection, 2],
+            [chorusSection, 1],
+            [auxSection, 0]
+        ).margins_(6));
+
+        {
+            var state = ~getDrumState.value(index);
+            var auxValue = (state[\aux] ?? { 0 }).clip(0, 1);
+            var greyholeState = state[\greyhole] ?? { ~greyholeDefaults.copy };
+            auxSendSlider.value_(auxValue);
+
+            auxSendSlider.action = { |sl|
+                ~setDrumAux.value(index, sl.value.clip(0, 1));
+            };
+
+            greyholeControls.do { |control|
+                var range = control[\spec][\range];
+                var value = greyholeState[control[\spec][\key]] ?? { range[0] };
+                var normalized = value.linlin(range[0], range[1], 0, 1).clip(0, 1);
+                control[\slider].value_(normalized);
+            };
+
+            chorusControls.do { |control|
+                var range = control[\spec][\range];
+                var value = greyholeState[control[\spec][\key]] ?? { range[0] };
+                var normalized = value.linlin(range[0], range[1], 0, 1).clip(0, 1);
+                control[\slider].value_(normalized);
+            };
+        }.value;
+
+        (container: effectsContainer);
+    };
+
+    drumColumns = drumChannelViews.collect { |control|
+        [control[\container], 1]
+    };
+
+    drumChannelArea.layout_(HLayout(10,
+        *drumColumns
+    ).margins_(10));
+
+    drumEffectsArea.layout_(HLayout(10,
+        *(drumEffectsViews.collect { |control| [control[\container], 1] })
+    ).margins_(10));
+
+    drumWindow.layout_(HLayout(10,
+        [drumChannelArea, 1],
+        [drumEffectsArea, 1]
+    ).margins_(10));
+
     window.onClose = {
         ~mixWindow = nil;
         if(~effectsWindow.notNil) {
             ~effectsWindow.close;
         };
         ~effectsWindow = nil;
+        if(~drumWindow.notNil) {
+            ~drumWindow.close;
+        };
+        ~drumWindow = nil;
         {
             ~cleanupAudio.tryPerform(\value);
             s.quit;
@@ -584,4 +928,5 @@
     };
     window.front;
     effectsWindow.front;
+    drumWindow.front;
 };
