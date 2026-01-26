@@ -35,22 +35,22 @@ SynthDef(\reverbReturn, {
 
 // Définitions des tranches d'entrée
 ~mixInputs = [
-    (label: "3 / 4",  channels: [2, 3],   isMono: 0),
-    (label: "5 / 6",  channels: [4, 5],   isMono: 0),
-    (label: "7 / 8",  channels: [6, 7],   isMono: 0),
-    (label: "21 / 22", channels: [20, 21], isMono: 0),
-    (label: "15 / 16", channels: [14, 15], isMono: 0),
-    (label: "17 / 18", channels: [16, 17], isMono: 0),
-    (label: "1 / 2", channels: [0, 1], isMono: 0)
+    (label: "evolver1",  channels: [2, 3],   isMono: 0),
+    (label: "evolver2",  channels: [4, 5],   isMono: 0),
+    (label: "evolver3",  channels: [6, 7],   isMono: 0),
+    (label: "evolver4",  channels: [8, 9], isMono: 0),
+    (label: "synth1", channels: [14, 15], isMono: 0),
+    (label: "synth2", channels: [16, 17], isMono: 0),
+    (label: "synth3", channels: [18, 19], isMono: 0)
 ];
 
 ~drumInputs = [
-    (label: "Kick 13 / 14", channels: [12, 13], isMono: 0),
-    (label: "HH1 15 / 16", channels: [14, 15], isMono: 0),
-    (label: "HH2 17 / 18", channels: [16, 17], isMono: 0),
-    (label: "Snare 19 / 20", channels: [18, 19], isMono: 0),
-    (label: "Snare 21 / 22", channels: [20, 21], isMono: 0),
-    (label: "Cymbal 23 / 24", channels: [22, 23], isMono: 0)
+    (label: "Kick 13 / 14", channels: [20, 21], isMono: 0),
+    (label: "HH1 15 / 16", channels: [22, 23], isMono: 0),
+    (label: "HH2 17 / 18", channels: [24, 25], isMono: 0),
+    (label: "Snare 19 / 20", channels: [26, 27], isMono: 0),
+    (label: "Snare 21 / 22", channels: [28, 29], isMono: 0),
+    (label: "Cymbal 23 / 24", channels: [30, 31], isMono: 0)
 ];
 
 // SynthDef pour chaque tranche d'entrée avec égalisation 4 bandes
@@ -190,7 +190,7 @@ SynthDef(\mixChannel, {
     ~stereoInputSynth = nil;
     ~reverbReturnSynth = nil;
     ~airpodsOutSynth = nil;
-}; 
+};
 
 ~setupAudio = {
     // Nettoyage si nécessaire
@@ -284,7 +284,7 @@ SynthDef(\mixChannel, {
             \mute, state[\muted],
             \auxLevel, state[\aux]
         ], target: ~inputGroup);
-    }; 
+    };
 
     ~drumSynths = ~drumInputs.collect { |cfg, index|
         var state = ~drumStates[index];
