@@ -218,7 +218,7 @@
 
     effectsViews = ~mixInputs.collect { |cfg, index|
         var effectsContainer, headerSection, headerLabel;
-        var fxSection, fxHeader, fxHeaderText, fxControls, fxControlsByKey, fxColumns, fxColumnsContainer;
+        var fxSection, fxHeader, fxHeaderText, fxControls, fxColumnsContainer;
         var greyholeSection, greyholeHeader, greyholeHeaderText, greyholeControls, greyholeColumns, greyholeColumnsContainer;
         var chorusSection, chorusHeader, chorusHeaderText, chorusControls;
         var auxSection, auxHeaderText, auxSendSlider;
@@ -280,7 +280,6 @@
             .stringColor_(Color.white)
             .font_(Font(Font.defaultSansFace, 10, true));
 
-        fxControlsByKey = IdentityDictionary.new;
         fxControls = fxSpecs.collect { |spec|
             var container, slider, labelView;
             var control;
@@ -304,19 +303,7 @@
                 var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
                 ~setChannelFx.value(index, spec[\key], value);
             };
-            control = (container: container, slider: slider, spec: spec);
-            fxControlsByKey[spec[\key]] = control;
-            control;
-        };
-
-        fxColumns = fxGroups.collect { |groupSpecs|
-            var columnControls = groupSpecs.collect { |spec| fxControlsByKey[spec[\key]] };
-            var columnView = CompositeView(fxSection)
-                .background_(sectionColor);
-            columnView.layout_(VLayout(2,
-                *(columnControls.collect { |control| [control[\container], 0] })
-            ).margins_(0));
-            columnView;
+            (container: container, slider: slider, spec: spec);
         };
 
         fxColumnsContainer = CompositeView(fxSection)
@@ -390,7 +377,7 @@
         ).margins_(4));
 
         fxColumnsContainer.layout_(HLayout(6,
-            *(fxColumns.collect { |column| [column, 1] })
+            *(fxControls.collect { |control| [control[\container], 1] })
         ).margins_(0));
 
         fxSection.layout_(VLayout(4,
@@ -832,7 +819,7 @@
 
     drumEffectsViews = ~drumInputs.collect { |cfg, index|
         var effectsContainer, headerSection, headerLabel;
-        var fxSection, fxHeader, fxHeaderText, fxControls, fxControlsByKey, fxColumns, fxColumnsContainer;
+        var fxSection, fxHeader, fxHeaderText, fxControls, fxColumnsContainer;
         var greyholeSection, greyholeHeader, greyholeHeaderText, greyholeControls, greyholeColumns, greyholeColumnsContainer;
         var chorusSection, chorusHeader, chorusHeaderText, chorusControls;
         var auxSection, auxHeaderText, auxSendSlider;
@@ -894,7 +881,6 @@
             .stringColor_(Color.white)
             .font_(Font(Font.defaultSansFace, 10, true));
 
-        fxControlsByKey = IdentityDictionary.new;
         fxControls = fxSpecs.collect { |spec|
             var container, slider, labelView;
             var control;
@@ -918,19 +904,7 @@
                 var value = sl.value.linlin(0, 1, spec[\range][0], spec[\range][1]);
                 ~setDrumFx.value(index, spec[\key], value);
             };
-            control = (container: container, slider: slider, spec: spec);
-            fxControlsByKey[spec[\key]] = control;
-            control;
-        };
-
-        fxColumns = fxGroups.collect { |groupSpecs|
-            var columnControls = groupSpecs.collect { |spec| fxControlsByKey[spec[\key]] };
-            var columnView = CompositeView(fxSection)
-                .background_(sectionColor);
-            columnView.layout_(VLayout(2,
-                *(columnControls.collect { |control| [control[\container], 0] })
-            ).margins_(0));
-            columnView;
+            (container: container, slider: slider, spec: spec);
         };
 
         fxColumnsContainer = CompositeView(fxSection)
@@ -1004,7 +978,7 @@
         ).margins_(4));
 
         fxColumnsContainer.layout_(HLayout(6,
-            *(fxColumns.collect { |column| [column, 1] })
+            *(fxControls.collect { |control| [control[\container], 1] })
         ).margins_(0));
 
         fxSection.layout_(VLayout(4,
