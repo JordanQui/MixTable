@@ -59,6 +59,27 @@
         ],
         [
             (key: \satDrive, label: "Sat Drive", range: [0, 2])
+        ],
+        [
+            (key: \cloudsMix, label: "Clouds Mix", range: [0, 1]),
+            (key: \cloudsPitch, label: "Clouds Pitch", range: [-24, 24]),
+            (key: \cloudsPosition, label: "Clouds Pos", range: [0, 1]),
+            (key: \cloudsSize, label: "Clouds Size", range: [0, 1])
+        ],
+        [
+            (key: \cloudsDensity, label: "Clouds Dens", range: [0, 1]),
+            (key: \cloudsTexture, label: "Clouds Tex", range: [0, 1]),
+            (key: \cloudsFeedback, label: "Clouds FB", range: [0, 0.99]),
+            (key: \cloudsFreeze, label: "Clouds Freeze", range: [0, 1])
+        ],
+        [
+            (key: \cloudsMode, label: "Clouds Mode", range: [0, 3]),
+            (key: \cloudsSpread, label: "Clouds Spread", range: [0, 1]),
+            (key: \cloudsReverb, label: "Clouds Reverb", range: [0, 1]),
+            (key: \cloudsInputGain, label: "Clouds Gain", range: [0, 2])
+        ],
+        [
+            (key: \cloudsEnvAmount, label: "Clouds Env", range: [0, 1])
         ]
     ];
     var fxSpecs = fxGroups.flat;

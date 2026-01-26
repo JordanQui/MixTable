@@ -66,6 +66,9 @@ SynthDef(\mixChannel, {
     sideHpfFreq = 150,
     satDrive = 0.2,
     chorusDepth = 0.01, chorusDryWet = 0, chorusFeedback = 0.2,
+    cloudsMix = 0, cloudsPitch = 0, cloudsPosition = 0.5, cloudsSize = 0.4, cloudsDensity = 0.4,
+    cloudsTexture = 0.4, cloudsFeedback = 0.3, cloudsFreeze = 0, cloudsMode = 0, cloudsSpread = 0.6,
+    cloudsReverb = 0.2, cloudsInputGain = 1, cloudsEnvAmount = 0.3,
     dryWet = 0, ghDelayTime = 1.5, ghDamp = 0.2, ghSize = 1, ghDiff = 0.7,
     ghFeedback = 0.3, ghModDepth = 0.1, ghModFreq = 1, ghEarlyDiff = 0.7, ghSpread = 0.8,
     lowFreq = 120, lowRQ = 1, lowGain = 0,
@@ -74,6 +77,7 @@ SynthDef(\mixChannel, {
     highFreq = 8000, highRQ = 1, highGain = 0,
     wideFreq = 1200, wideRQ = 1, wideGain = 0|
     var stereo, mono, sig, muteLevel, chorusDelay, chorusWet, greyholeWet, postFader;
+    var cloudsEnv, cloudsDensityMod, cloudsTextureMod, cloudsWet;
     var lowBand, highBand, monoLow, panLfo;
     var haasBand, haasDelayed, haasBlend;
     var allpassWet;
@@ -106,6 +110,24 @@ SynthDef(\mixChannel, {
     allpassWet = AllpassC.ar(allpassWet, 0.05, (allpassTime * 1.2).clip(0.001, 0.03), allpassDecay.clip(0.01, 1));
     allpassWet = AllpassC.ar(allpassWet, 0.05, (allpassTime * 0.8).clip(0.001, 0.03), allpassDecay.clip(0.01, 1));
     sig = XFade2.ar(sig, allpassWet, (allpassMix.clip(0, 1) * 2) - 1);
+    cloudsEnv = Amplitude.kr(sig.sum, 0.01, 0.2).clip(0, 1);
+    cloudsDensityMod = (cloudsDensity + (cloudsEnv * cloudsEnvAmount)).clip(0, 1);
+    cloudsTextureMod = (cloudsTexture + (cloudsEnv * (cloudsEnvAmount * 0.5))).clip(0, 1);
+    cloudsWet = MiClouds.ar(
+        sig * cloudsInputGain.clip(0, 2),
+        pit: cloudsPitch.clip(-24, 24),
+        pos: cloudsPosition.clip(0, 1),
+        size: cloudsSize.clip(0, 1),
+        dens: cloudsDensityMod,
+        tex: cloudsTextureMod,
+        drywet: 1,
+        spread: cloudsSpread.clip(0, 1),
+        rvb: cloudsReverb.clip(0, 1),
+        fb: cloudsFeedback.clip(0, 0.99),
+        freeze: cloudsFreeze.clip(0, 1),
+        mode: cloudsMode.clip(0, 3)
+    );
+    sig = XFade2.ar(sig, cloudsWet, (cloudsMix.clip(0, 1) * 2) - 1);
     greyholeWet = Greyhole.ar(
         sig,
         ghDelayTime.clip(0.01, 5),
@@ -177,7 +199,20 @@ SynthDef(\mixChannel, {
     allpassDecay: 0.1,
     ghSideBias: 0.6,
     sideHpfFreq: 80,
-    satDrive: 0
+    satDrive: 0,
+    cloudsMix: 0,
+    cloudsPitch: 0,
+    cloudsPosition: 0.5,
+    cloudsSize: 0.4,
+    cloudsDensity: 0.4,
+    cloudsTexture: 0.4,
+    cloudsFeedback: 0.3,
+    cloudsFreeze: 0,
+    cloudsMode: 0,
+    cloudsSpread: 0.6,
+    cloudsReverb: 0.2,
+    cloudsInputGain: 1,
+    cloudsEnvAmount: 0.3
 );
 
 ~fxParamMap = (
@@ -196,7 +231,20 @@ SynthDef(\mixChannel, {
     allpassDecay: \allpassDecay,
     ghSideBias: \ghSideBias,
     sideHpfFreq: \sideHpfFreq,
-    satDrive: \satDrive
+    satDrive: \satDrive,
+    cloudsMix: \cloudsMix,
+    cloudsPitch: \cloudsPitch,
+    cloudsPosition: \cloudsPosition,
+    cloudsSize: \cloudsSize,
+    cloudsDensity: \cloudsDensity,
+    cloudsTexture: \cloudsTexture,
+    cloudsFeedback: \cloudsFeedback,
+    cloudsFreeze: \cloudsFreeze,
+    cloudsMode: \cloudsMode,
+    cloudsSpread: \cloudsSpread,
+    cloudsReverb: \cloudsReverb,
+    cloudsInputGain: \cloudsInputGain,
+    cloudsEnvAmount: \cloudsEnvAmount
 );
 
 ~fxRanges = (
@@ -215,7 +263,20 @@ SynthDef(\mixChannel, {
     allpassDecay: [0.01, 1],
     ghSideBias: [0, 1],
     sideHpfFreq: [80, 300],
-    satDrive: [0, 2]
+    satDrive: [0, 2],
+    cloudsMix: [0, 1],
+    cloudsPitch: [-24, 24],
+    cloudsPosition: [0, 1],
+    cloudsSize: [0, 1],
+    cloudsDensity: [0, 1],
+    cloudsTexture: [0, 1],
+    cloudsFeedback: [0, 0.99],
+    cloudsFreeze: [0, 1],
+    cloudsMode: [0, 3],
+    cloudsSpread: [0, 1],
+    cloudsReverb: [0, 1],
+    cloudsInputGain: [0, 2],
+    cloudsEnvAmount: [0, 1]
 );
 
 ~greyholeDefaults = (
@@ -376,6 +437,19 @@ SynthDef(\mixChannel, {
             \ghSideBias, fxState[\ghSideBias],
             \sideHpfFreq, fxState[\sideHpfFreq],
             \satDrive, fxState[\satDrive],
+            \cloudsMix, fxState[\cloudsMix],
+            \cloudsPitch, fxState[\cloudsPitch],
+            \cloudsPosition, fxState[\cloudsPosition],
+            \cloudsSize, fxState[\cloudsSize],
+            \cloudsDensity, fxState[\cloudsDensity],
+            \cloudsTexture, fxState[\cloudsTexture],
+            \cloudsFeedback, fxState[\cloudsFeedback],
+            \cloudsFreeze, fxState[\cloudsFreeze],
+            \cloudsMode, fxState[\cloudsMode],
+            \cloudsSpread, fxState[\cloudsSpread],
+            \cloudsReverb, fxState[\cloudsReverb],
+            \cloudsInputGain, fxState[\cloudsInputGain],
+            \cloudsEnvAmount, fxState[\cloudsEnvAmount],
             \chorusDepth, state[\greyhole][\chorusDepth],
             \chorusDryWet, state[\greyhole][\chorusDryWet],
             \chorusFeedback, state[\greyhole][\chorusFeedback],
@@ -435,6 +509,19 @@ SynthDef(\mixChannel, {
             \ghSideBias, fxState[\ghSideBias],
             \sideHpfFreq, fxState[\sideHpfFreq],
             \satDrive, fxState[\satDrive],
+            \cloudsMix, fxState[\cloudsMix],
+            \cloudsPitch, fxState[\cloudsPitch],
+            \cloudsPosition, fxState[\cloudsPosition],
+            \cloudsSize, fxState[\cloudsSize],
+            \cloudsDensity, fxState[\cloudsDensity],
+            \cloudsTexture, fxState[\cloudsTexture],
+            \cloudsFeedback, fxState[\cloudsFeedback],
+            \cloudsFreeze, fxState[\cloudsFreeze],
+            \cloudsMode, fxState[\cloudsMode],
+            \cloudsSpread, fxState[\cloudsSpread],
+            \cloudsReverb, fxState[\cloudsReverb],
+            \cloudsInputGain, fxState[\cloudsInputGain],
+            \cloudsEnvAmount, fxState[\cloudsEnvAmount],
             \chorusDepth, state[\greyhole][\chorusDepth],
             \chorusDryWet, state[\greyhole][\chorusDryWet],
             \chorusFeedback, state[\greyhole][\chorusFeedback],
