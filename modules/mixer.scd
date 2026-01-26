@@ -44,6 +44,15 @@ SynthDef(\reverbReturn, {
     (label: "1 / 2", channels: [0, 1], isMono: 0)
 ];
 
+~drumInputs = [
+    (label: "Kick 13 / 14", channels: [12, 13], isMono: 0),
+    (label: "HH1 15 / 16", channels: [14, 15], isMono: 0),
+    (label: "HH2 17 / 18", channels: [16, 17], isMono: 0),
+    (label: "Snare 19 / 20", channels: [18, 19], isMono: 0),
+    (label: "Snare 21 / 22", channels: [20, 21], isMono: 0),
+    (label: "Cymbal 23 / 24", channels: [22, 23], isMono: 0)
+];
+
 // SynthDef pour chaque tranche d'entrée avec égalisation 4 bandes
 SynthDef(\mixChannel, {
     |inA = 0, inB = 1, isMono = 0, outBus = 0, auxBus = 0,
@@ -154,7 +163,7 @@ SynthDef(\mixChannel, {
 );
 
 ~cleanupAudio = {
-    [~channelSynths, ~limiterSynth, ~masterEqSynth, ~auxOutSynth, ~stereoInputSynth, ~reverbReturnSynth, ~airpodsOutSynth].do { |item|
+    [~channelSynths, ~drumSynths, ~limiterSynth, ~masterEqSynth, ~auxOutSynth, ~stereoInputSynth, ~reverbReturnSynth, ~airpodsOutSynth].do { |item|
         if(item.notNil) {
             if(item.isKindOf(Array)) {
                 item.do(_.tryPerform(\free));
@@ -168,6 +177,7 @@ SynthDef(\mixChannel, {
     [~mixBus, ~masterBus, ~auxBus].do(_.tryPerform(\free));
 
     ~channelSynths = nil;
+    ~drumSynths = nil;
     ~limiterSynth = nil;
     ~masterEqSynth = nil;
     ~mixBus = nil;
@@ -198,6 +208,20 @@ SynthDef(\mixChannel, {
     ~outputGroup = Group.after(~fxGroup);
 
     ~channelStates = Array.fill(~mixInputs.size, {
+        var eqState = IdentityDictionary.new;
+        ~eqDefaults.keysValuesDo { |band, defaults|
+            eqState[band] = defaults.copy;
+        };
+        (
+            gainDB: 0,
+            eq: eqState,
+            muted: 0,
+            aux: 0,
+            greyhole: ~greyholeDefaults.copy
+        );
+    });
+
+    ~drumStates = Array.fill(~drumInputs.size, {
         var eqState = IdentityDictionary.new;
         ~eqDefaults.keysValuesDo { |band, defaults|
             eqState[band] = defaults.copy;
@@ -262,6 +286,48 @@ SynthDef(\mixChannel, {
         ], target: ~inputGroup);
     }; 
 
+    ~drumSynths = ~drumInputs.collect { |cfg, index|
+        var state = ~drumStates[index];
+        Synth(\mixChannel, [
+            \inA, cfg[\channels][0],
+            \inB, cfg[\channels][1],
+            \isMono, cfg[\isMono],
+            \outBus, ~mixBus,
+            \auxBus, ~auxBus,
+            \gainAmp, state[\gainDB].dbamp,
+            \chorusDepth, state[\greyhole][\chorusDepth],
+            \chorusDryWet, state[\greyhole][\chorusDryWet],
+            \chorusFeedback, state[\greyhole][\chorusFeedback],
+            \dryWet, state[\greyhole][\dryWet],
+            \ghDelayTime, state[\greyhole][\delayTime],
+            \ghDamp, state[\greyhole][\damp],
+            \ghSize, state[\greyhole][\size],
+            \ghDiff, state[\greyhole][\diff],
+            \ghFeedback, state[\greyhole][\feedback],
+            \ghModDepth, state[\greyhole][\modDepth],
+            \ghModFreq, state[\greyhole][\modFreq],
+            \ghEarlyDiff, state[\greyhole][\earlyDiff],
+            \ghSpread, state[\greyhole][\spread],
+            \lowFreq, state[\eq][\low][\freq],
+            \lowRQ, (state[\eq][\low][\q] ?? { 1 }).reciprocal,
+            \lowGain, state[\eq][\low][\gain],
+            \mid1Freq, state[\eq][\mid1][\freq],
+            \mid1RQ, (state[\eq][\mid1][\q] ?? { 1 }).reciprocal,
+            \mid1Gain, state[\eq][\mid1][\gain],
+            \mid2Freq, state[\eq][\mid2][\freq],
+            \mid2RQ, (state[\eq][\mid2][\q] ?? { 1 }).reciprocal,
+            \mid2Gain, state[\eq][\mid2][\gain],
+            \highFreq, state[\eq][\high][\freq],
+            \highRQ, (state[\eq][\high][\q] ?? { 1 }).reciprocal,
+            \highGain, state[\eq][\high][\gain],
+            \wideFreq, state[\eq][\wide][\freq],
+            \wideRQ, (state[\eq][\wide][\q] ?? { 1 }).reciprocal,
+            \wideGain, state[\eq][\wide][\gain],
+            \mute, state[\muted],
+            \auxLevel, state[\aux]
+        ], target: ~inputGroup);
+    };
+
     ~masterEqSynth = Synth(\masterEQ, [
         \inBus, ~mixBus,
         \outBus, ~masterBus,
@@ -279,8 +345,8 @@ SynthDef(\mixChannel, {
         \highGain, ~masterEqState[\high][\gain]
     ], target: ~outputGroup, addAction: \addToHead);
     ~stereoInputSynth = Synth(\stereoInput, [
-        \inA, 18,
-        \inB, 19,
+        \inA, 30,
+        \inB, 31,
         \outBus, ~masterBus,
         \gainDB, ~stereoInputState[\gainDB]
     ], target: ~inputGroup, addAction: \addToHead);
@@ -374,6 +440,80 @@ SynthDef(\mixChannel, {
         };
     };
 
+    ~setDrumGain = { |index, db|
+        if((index >= 0) and: { index < ~drumSynths.size }) {
+            var synth = ~drumSynths[index];
+            ~drumStates[index][\gainDB] = db;
+            synth.tryPerform(\set, \gainAmp, db.dbamp);
+        };
+    };
+
+    ~setDrumMute = { |index, muted|
+        if((index >= 0) and: { index < ~drumSynths.size }) {
+            var synth = ~drumSynths[index];
+            var muteValue = muted.clip(0, 1);
+            ~drumStates[index][\muted] = muteValue;
+            synth.tryPerform(\set, \mute, muteValue);
+        };
+    };
+
+    ~setDrumAux = { |index, send|
+        if((index >= 0) and: { index < ~drumSynths.size }) {
+            var synth = ~drumSynths[index];
+            var level = send.clip(0, 1);
+            ~drumStates[index][\aux] = level;
+            synth.tryPerform(\set, \auxLevel, level);
+        };
+    };
+
+    ~setDrumGreyhole = { |index, param, value|
+        if((index >= 0) and: { index < ~drumSynths.size }) {
+            var synth = ~drumSynths[index];
+            var state = ~drumStates[index][\greyhole];
+            var key = ~greyholeParamMap[param];
+            var range = ~greyholeRanges[param];
+
+            if(key.notNil and: { range.notNil } and: { value.notNil }) {
+                var clipped = value.clip(range[0], range[1]);
+                state[param] = clipped;
+                synth.tryPerform(\set, key, clipped);
+                ~drumStates[index][\greyhole] = state;
+            };
+        };
+    };
+
+    ~setDrumChorus = { |index, param, value|
+        if((index >= 0) and: { index < ~drumSynths.size }) {
+            var synth = ~drumSynths[index];
+            var state = ~drumStates[index][\greyhole];
+            var key = ~greyholeParamMap[param];
+            var range = ~greyholeRanges[param];
+
+            if(key.notNil and: { range.notNil } and: { value.notNil }) {
+                var clipped = value.clip(range[0], range[1]);
+                state[param] = clipped;
+                synth.tryPerform(\set, key, clipped);
+                ~drumStates[index][\greyhole] = state;
+            };
+        };
+    };
+
+    ~setDrumEq = { |index, band, freq, gain, q|
+        if((index >= 0) and: { index < ~drumSynths.size }) {
+            var params = ~eqParamMap[band];
+            var synth = ~drumSynths[index];
+            if(params.notNil) {
+                var rq = q.reciprocal;
+                synth.tryPerform(\set,
+                    params[\freqKey], freq,
+                    params[\gainKey], gain,
+                    params[\qKey], rq
+                );
+            };
+            ~drumStates[index][\eq][band] = (freq: freq, gain: gain, q: q);
+        };
+    };
+
     ~setMasterEq = { |band, freq, gain, q|
         var params = ~eqParamMap[band];
         if(params.notNil) {
@@ -415,6 +555,16 @@ SynthDef(\mixChannel, {
 
     ~getChannelState = { |index|
         ~channelStates[index] ?? {
+            var eqState = IdentityDictionary.new;
+            ~eqDefaults.keysValuesDo { |band, defaults|
+                eqState[band] = defaults.copy;
+            };
+            (gainDB: 0, eq: eqState, muted: 0, aux: 0, greyhole: ~greyholeDefaults.copy);
+        };
+    };
+
+    ~getDrumState = { |index|
+        ~drumStates[index] ?? {
             var eqState = IdentityDictionary.new;
             ~eqDefaults.keysValuesDo { |band, defaults|
                 eqState[band] = defaults.copy;
