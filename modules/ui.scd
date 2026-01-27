@@ -101,7 +101,7 @@
         .background_(windowColor);
 
     channelViews = ~mixInputs.collect { |cfg, index|
-        var channelContainer, gainSection, gainSlider, muteButton;
+        var channelContainer, gainSection, gainLabel, gainSlider, muteButton;
         var eqArea, eqControls;
 
         channelContainer = CompositeView(channelArea)
@@ -110,6 +110,12 @@
 
         gainSection = CompositeView(channelContainer)
             .background_(sectionColor);
+
+        gainLabel = StaticText(gainSection)
+            .string_(cfg[\label] ?? { "Canal " ++ (index + 1).asString })
+            .align_(\center)
+            .stringColor_(Color.white)
+            .font_(Font(Font.defaultSansFace, 11, true));
 
         gainSlider = Slider(gainSection)
             .orientation_(\vertical)
@@ -180,6 +186,7 @@
         ).margins_(4));
 
         gainSection.layout_(VLayout(6,
+            [gainLabel, 0],
             [gainSlider, 1],
             [muteButton, 0]
         ).margins_(4));
@@ -721,7 +728,7 @@
         .background_(windowColor);
 
     drumChannelViews = ~drumInputs.collect { |cfg, index|
-        var channelContainer, gainSection, gainSlider, muteButton;
+        var channelContainer, gainSection, gainLabel, gainSlider, muteButton;
         var eqArea, eqControls;
 
         channelContainer = CompositeView(drumChannelArea)
@@ -730,6 +737,12 @@
 
         gainSection = CompositeView(channelContainer)
             .background_(sectionColor);
+
+        gainLabel = StaticText(gainSection)
+            .string_(cfg[\label] ?? { "Canal " ++ (index + 1).asString })
+            .align_(\center)
+            .stringColor_(Color.white)
+            .font_(Font(Font.defaultSansFace, 11, true));
 
         gainSlider = Slider(gainSection)
             .orientation_(\vertical)
@@ -800,6 +813,7 @@
         ).margins_(4));
 
         gainSection.layout_(VLayout(6,
+            [gainLabel, 0],
             [gainSlider, 1],
             [muteButton, 0]
         ).margins_(4));
