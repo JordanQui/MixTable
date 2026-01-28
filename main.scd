@@ -6,11 +6,13 @@ s.options.numBuffers = 2048;
 s.options.numWireBufs = 64;
 s.options.hardwareBufferSize = 64;
 s.options.blockSize = 64;
+s.options.sampleRate = 48000;
 s.latency = 0.01;
 s.options.outDevice = "SoundCard";
 s.options.inDevice = "SoundCard";
 s.options.numOutputBusChannels = 70;
 s.options.numInputBusChannels = 34;
+s.recSampleFormat = "int24";
 
 // ======================
 // Initialisation
