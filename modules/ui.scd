@@ -4,6 +4,15 @@
     var drumWindow, drumChannelArea, drumChannelViews, drumColumns;
     var drumEffectsWindow, drumEffectsArea, drumEffectsViews;
     var windowColor = Color(0.08, 0.08, 0.1);
+    var setFullScreen = { |uiWindow|
+        if(uiWindow.respondsTo(\fullScreen_)) {
+            uiWindow.fullScreen_(true);
+        } {
+            if(uiWindow.respondsTo(\fullScreen)) {
+                uiWindow.fullScreen;
+            };
+        };
+    };
     var panelColor = Color(0.12, 0.12, 0.16);
     var sectionColor = Color(0.18, 0.18, 0.22);
     var accentColor = Color(0.35, 0.65, 0.95);
@@ -95,6 +104,7 @@
         };
     };
     window.view.background_(windowColor);
+    setFullScreen.value(window);
     ~mixWindow = window;
 
     channelArea = CompositeView(window)
@@ -239,6 +249,7 @@
         };
     };
     effectsWindow.view.background_(windowColor);
+    setFullScreen.value(effectsWindow);
     ~effectsWindow = effectsWindow;
 
     effectsArea = CompositeView(effectsWindow)
@@ -722,6 +733,7 @@
         };
     };
     drumWindow.view.background_(windowColor);
+    setFullScreen.value(drumWindow);
     ~drumWindow = drumWindow;
 
     drumChannelArea = CompositeView(drumWindow)
@@ -865,6 +877,7 @@
         };
     };
     drumEffectsWindow.view.background_(windowColor);
+    setFullScreen.value(drumEffectsWindow);
     ~drumEffectsWindow = drumEffectsWindow;
 
     drumEffectsArea = CompositeView(drumEffectsWindow)
